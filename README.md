@@ -1,7 +1,7 @@
 # Teamer :
 
 **Teamer** is a simple real-time teamwork app made for busy teams. Like Microsoft Teams or WhatsApp, it helps people chat, share tasks, track progress, and send payments — all in one place.
-
+Teamer is a full-stack collab tool built using MERN.
 ---
 
 ## Tech Stack Overview
