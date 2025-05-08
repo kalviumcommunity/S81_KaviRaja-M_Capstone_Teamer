@@ -34,6 +34,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/',(req,res)=>{
+  console.log('Hello from backend')
+})
+
 app.use(express.json());
 app.use(cookieParser());
 
