@@ -208,94 +208,79 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// In server/src/controllers/authController.js
 
-// ... (other imports and functions)
-
-// New Google Login Controller
 export const googleLogin = async (req, res) => {
-  console.log("Received Google login request"); // Log start of function
+  console.log("Received Google login request"); 
   try {
-    const { token } = req.body; // Receive the ID token from the frontend
-    console.log("Received token:", token ? "Token received" : "No token received"); // Log token presence
+    const { token } = req.body; 
+    console.log("Received token:", token ? "Token received" : "No token received");
 
     if (!token) {
-      console.log("Missing Google ID token"); // Log missing token
+      console.log("Missing Google ID token"); 
       return res.status(400).json({ message: "Google ID token is missing" });
     }
 
-    console.log("Verifying ID token with Google..."); // Log verification step
+    console.log("Verifying ID token with Google..."); 
     const ticket = await client.verifyIdToken({
         idToken: token,
-        audience: process.env.GOOGLE_CLIENT_ID, // Specify the CLIENT_ID of the app that accesses the backend
+        audience: process.env.GOOGLE_CLIENT_ID, 
     });
-    console.log("ID token verified successfully."); // Log successful verification
+    console.log("ID token verified successfully."); 
 
     const payload = ticket.getPayload();
-    console.log("Extracted payload:", payload); // Log the extracted payload
+    console.log("Extracted payload:", payload); 
 
-    const googleId = payload['sub']; // The unique Google user ID
+    const googleId = payload['sub']; 
     const email = payload['email'];
     const name = payload['name'];
-    const picture = payload['picture']; // Optional: if you want to store profile picture URL
-
-    console.log(`Searching for user with googleId: ${googleId}`); // Log search by googleId
-    // Find or create the user in your database
+    const picture = payload['picture']; 
+    console.log(`Searching for user with googleId: ${googleId}`); 
     let user = await User.findOne({ googleId });
-    console.log("User found by googleId:", user ? user._id : "None"); // Log result of googleId search
+    console.log("User found by googleId:", user ? user._id : "None"); 
 
 
     if (!user) {
-      console.log(`No user found with googleId. Searching by email: ${email}`); // Log search by email
-      // If user doesn't exist with googleId, check by email
+      console.log(`No user found with googleId. Searching by email: ${email}`); 
       user = await User.findOne({ email });
-      console.log("User found by email:", user ? user._id : "None"); // Log result of email search
+      console.log("User found by email:", user ? user._id : "None"); 
 
 
       if (user) {
-        console.log("User found by email, updating with googleId."); // Log update action
-        // If user exists with email but no googleId, update their record
+        console.log("User found by email, updating with googleId.");
         user.googleId = googleId;
-        // Optionally update name/picture if they are null/empty
         if (!user.name) user.name = name;
-        // if (!user.picture) user.picture = picture; // Add picture field to model if needed
-        console.log("Saving updated user..."); // Log before saving update
+        console.log("Saving updated user..."); 
         await user.save();
-        console.log("Updated user saved successfully."); // Log after saving update
+        console.log("Updated user saved successfully."); 
       } else {
-        console.log("No user found by googleId or email. Creating new user."); // Log create action
-        // If user doesn't exist at all, create a new one
+        console.log("No user found by googleId or email. Creating new user."); 
         user = new User({
           googleId,
           email,
           name,
-          // picture, // Add picture field to model if needed
-          // username can be generated or left null
         });
-        console.log("Saving new user..."); // Log before saving new user
+        console.log("Saving new user..."); 
         await user.save();
-        console.log("New user saved successfully."); // Log after saving new user
+        console.log("New user saved successfully."); 
       }
     } else {
-        console.log("User found by googleId, proceeding with login."); // Log existing user login
+        console.log("User found by googleId, proceeding with login.");
     }
 
-
-    // Generate and set JWT token
     const authToken = user.generateToken();
     res.cookie("token", authToken, {
       httpOnly: true,
       sameSite: "Strict"
     });
-    console.log("JWT token generated and cookie set."); // Log token/cookie action
+    console.log("JWT token generated and cookie set."); 
 
 
     res.status(200).json({ message: "Google login successful", user });
-    console.log("Sent success response."); // Log success response
+    console.log("Sent success response."); 
 
   } catch (error) {
-    console.error("Google login error:", error); // Log the error
+    console.error("Google login error:", error); 
     res.status(500).json({ message: "Server error during Google login", error: error.message });
-    console.log("Sent error response."); // Log error response
+    console.log("Sent error response."); 
   }
 };
