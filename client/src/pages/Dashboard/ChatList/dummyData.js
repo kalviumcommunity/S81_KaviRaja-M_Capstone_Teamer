@@ -1,4 +1,30 @@
 // Sample data for development - will be replaced with real data from backend
+const generateGroupMembers = () => {
+  const roles = ['admin', 'member', 'member', 'member', 'member', 'member', 'member'];
+  return Array.from({ length: 7 }, (_, i) => ({
+    id: `member-${i + 1}`,
+    name: `${['Sarah', 'John', 'Emma', 'Michael', 'Lisa', 'David', 'Anna'][i]} ${['Johnson', 'Smith', 'Wilson', 'Brown', 'Davis', 'Miller', 'Taylor'][i]}`,
+    avatar: `https://randomuser.me/api/portraits/${i % 2 ? 'men' : 'women'}/${i + 1}.jpg`,
+    role: roles[i],
+    isOnline: Math.random() > 0.5,
+    lastActive: new Date().toISOString(),
+    messageCount: Math.floor(Math.random() * 200),
+    email: `member${i + 1}@example.com`,
+    phone: `+1 (555) ${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+    joinedAt: new Date(Date.now() - Math.floor(Math.random() * 90) * 24 * 60 * 60 * 1000).toISOString(),
+    performance: {
+      tasksCompleted: Math.floor(Math.random() * 50),
+      messagesSent: Math.floor(Math.random() * 200),
+      pollsCreated: Math.floor(Math.random() * 10)
+    },
+    paymentInfo: {
+      id: `payment-${i + 1}`,
+      name: `${['Sarah', 'John', 'Emma', 'Michael', 'Lisa', 'David', 'Anna'][i]} ${['Johnson', 'Smith', 'Wilson', 'Brown', 'Davis', 'Miller', 'Taylor'][i]}`,
+      accountType: ['Savings', 'Checking'][Math.floor(Math.random() * 2)]
+    }
+  }));
+};
+
 export const dummyChats = [
   {
     id: 1,
@@ -21,16 +47,16 @@ export const dummyChats = [
     name: "Marketing Team",
     avatar: "https://randomuser.me/api/portraits/women/2.jpg",
     isGroup: true,
-    memberCount: 8,
+    members: generateGroupMembers(),
     isOnline: false,
     isPinned: true,
     lastMessage: {
       text: "Meeting scheduled for tomorrow at 10 AM",
       sender: "Sarah Johnson",
-      status: "delivered",
+      status: "delivered"
     },
-    timestamp: new Date(new Date().getTime() - 2 * 3600000).toISOString(),
-    unreadCount: 3,
+    timestamp: new Date().toISOString(),
+    unreadCount: 3
   },
   {
     id: 3,

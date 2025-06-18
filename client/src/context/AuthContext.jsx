@@ -1,68 +1,51 @@
-import { createContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import React, { createContext, useContext, useState } from 'react';
 
-export const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
-
-const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    checkLoginStatus();
-  }, []);
-
-  const checkLoginStatus = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/auth/profile", {
-        withCredentials: true,
-      });
-      setUser(res.data);
-    } catch (error) {
-      setUser(null);
-    }
-  };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const login = async (email, password) => {
     try {
-      await axios.post("http://localhost:5000/api/auth/login", { email, password }, {
-        withCredentials: true
-      });
-      checkLoginStatus();
-      navigate("/dashboard");
-    } catch (error) {
-      console.error("Login failed", error);
-      throw error;
+      setLoading(true);
+      setError(null);
+      // Your login logic here
+      const mockUser = { email, name: 'Test User' };
+      setUser(mockUser);
+      return mockUser;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const register = async (name, email, password, username) => {
-    try {
-      await axios.post("http://localhost:5000/api/auth/register", { name, email, password, username });
-      navigate("/login");
-    } catch (error) {
-      console.error("Registration failed", error);
-      throw error;
-    }
+  const logout = () => {
+    setUser(null);
   };
 
-  const logout = async () => {
-    try {
-      await axios.post("http://localhost:5000/api/auth/logout", {}, {
-        withCredentials: true
-      });
-      setUser(null);
-      navigate("/login");
-    } catch (error) {
-      console.error("Logout failed", error);
-    }
+  const value = {
+    user,
+    loading,
+    error,
+    login,
+    logout
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
-export default AuthProvider;
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

@@ -1,5 +1,3 @@
-
-
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -33,7 +31,7 @@ const Login = () => {
         animate={{ scale: 1.1 }}
         transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
         className="absolute inset-0 bg-cover bg-center filter blur-md brightness-50"
-        style={{ backgroundImage: "url('/path-to-your-image.jpg')" }}
+        style={{ backgroundImage: "url('/teamwork.jpg')" }}
       ></motion.div>
 
       {/* Overlay Gradient */}

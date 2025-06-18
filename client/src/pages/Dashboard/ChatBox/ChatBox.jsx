@@ -11,8 +11,12 @@ import GroupMenu from './GroupMenu';
 import TaskAssignmentModal from './TaskAssignmentModal';
 import TaskMessage from './TaskMessage';
 import AnalyticsGraph from './AnalyticsGraph';
+import { useNavigate } from 'react-router-dom';
+import { useCall } from '../../../context/CallContext';
 
 const ChatBox = ({ chat }) => {
+  const navigate = useNavigate();
+  const { joinCall } = useCall();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [showCallModal, setShowCallModal] = useState(false);
@@ -282,16 +286,20 @@ const ChatBox = ({ chat }) => {
     }));
   };
 
-  const handleScheduleCall = (scheduledTime) => {
+  const handleScheduleCall = (callData) => {
+    const callId = `call-${Date.now()}`; // Generate unique call ID
     const callMessage = {
-      id: Date.now(),
+      id: callId, // Use the same ID for both message and call
       type: 'scheduledCall',
-      content: 'Video call scheduled',
-      scheduledTime,
+      scheduledTime: callData.scheduledTime,
+      duration: callData.duration,
+      description: callData.description,
+      participants: callData.participants,
       sender: 'You',
       timestamp: new Date().toISOString(),
       status: 'scheduled'
     };
+    
     setMessages(prev => [...prev, callMessage]);
     setShowScheduleCall(false);
     scrollToBottom(true);
@@ -306,6 +314,18 @@ const ChatBox = ({ chat }) => {
     };
     setMessages(prev => [...prev, systemMessage]);
     scrollToBottom(true);
+  };
+
+  const handleJoinCall = (callId) => {
+    // Find call message
+    const callMessage = messages.find(msg => msg.id === callId && msg.type === 'scheduledCall');
+    if (callMessage) {
+      joinCall({
+        id: callId,
+        ...callMessage
+      });
+      navigate(`/video-call/${callId}`);
+    }
   };
 
   const renderMessage = (msg) => {
@@ -377,14 +397,48 @@ const ChatBox = ({ chat }) => {
           </div>
         );
       case 'scheduledCall':
+        const isCallActive = new Date(msg.scheduledTime) <= new Date();
+        const participants = msg.participants.map(id => 
+          chat.members.find(m => m.id === id)
+        ).filter(Boolean);
+
         return (
           <div className={messageClasses}>
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4" />
-              <span>
-                Call scheduled for{' '}
-                {new Date(msg.scheduledTime).toLocaleString()}
-              </span>
+            <div className="bg-gray-800 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Video className="w-5 h-5 text-blue-500" />
+                  <h4 className="font-semibold text-white">Video Call</h4>
+                </div>
+                <span className="text-sm text-gray-400">
+                  Created by {msg.sender}
+                </span>
+              </div>
+              
+              <p className="text-sm text-gray-300 mb-3">{msg.description}</p>
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between text-sm text-gray-400">
+                  <span>{new Date(msg.scheduledTime).toLocaleString()}</span>
+                  <span>{msg.duration} minutes</span>
+                </div>
+                <div className="text-sm text-gray-400">
+                  Participants: {participants.map(p => p.name).join(', ')}
+                </div>
+              </div>
+
+              {isCallActive ? (
+                <button 
+                  onClick={() => handleJoinCall(msg.id)}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Join Call
+                </button>
+              ) : (
+                <div className="text-sm text-gray-400">
+                  Starting in {formatTimeUntilCall(msg.scheduledTime)}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -399,6 +453,17 @@ const ChatBox = ({ chat }) => {
     }
   };
 
+  const formatTimeUntilCall = (scheduledTime) => {
+    const diff = new Date(scheduledTime) - new Date();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days} days`;
+    if (hours > 0) return `${hours} hours`;
+    return `${minutes} minutes`;
+  };
+
   if (!chat) {
     return (
       <div className="flex flex-col h-full bg-gray-900 items-center justify-center text-gray-400">
@@ -407,20 +472,37 @@ const ChatBox = ({ chat }) => {
     );
   }
 
+  const handleGroupHeaderClick = () => {
+    setShowGroupInfo(true);
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-900">
       {/* Chat Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900">
         <div className="flex items-center gap-4">
           <div 
-            className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer text-white"
-            onClick={() => setShowGroupInfo(true)}
+            className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer overflow-hidden"
+            onClick={() => chat.isGroup ? setShowGroupInfo(true) : handleMemberClick(chat)}
           >
-            {chat?.name?.[0]?.toUpperCase()}
+            <img
+              src={chat.avatar}
+              alt={chat.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`;
+              }}
+            />
           </div>
           <div>
-            <h2 className="font-semibold text-white text-lg">{chat?.name}</h2>
-            <p className="text-sm text-gray-400">{chat?.members?.length || 0} members</p>
+            <h2 className="font-semibold text-white text-lg">{chat.name}</h2>
+            {chat.isGroup ? (
+              <p className="text-sm text-gray-400">{chat.members?.length || 0} members</p>
+            ) : (
+              <p className="text-sm text-gray-400">
+                {chat.isOnline ? 'Online' : `Last seen ${chat.lastSeen}`}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -595,6 +677,7 @@ const ChatBox = ({ chat }) => {
         <ScheduleCall
           onClose={() => setShowScheduleCall(false)}
           onSchedule={handleScheduleCall}
+          group={chat}
         />
       )}
       {showGroupMenu && chat && (
