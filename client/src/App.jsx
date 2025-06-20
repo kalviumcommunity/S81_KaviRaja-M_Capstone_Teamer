@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Auth/login";
 import Signup from "./pages/Auth/Signup";
@@ -9,9 +9,47 @@ import { useAuth } from "./context/AuthContext";
 import ChatTester from "./components/ChatTester";
 import { SocketProvider } from "./context/SocketContext";
 import { ChatProvider } from "./context/ChatContext";
+import useSessionCheck from "./hooks/useSessionCheck";
+
+const ProtectedDashboard = () => {
+  useSessionCheck();
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return (
+    <SocketProvider>
+      <ChatProvider>
+        <Dashboard />
+      </ChatProvider>
+    </SocketProvider>
+  );
+};
+
+const ProtectedVideoCall = () => {
+  useSessionCheck();
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return (
+    <SocketProvider>
+      <VideoCall />
+    </SocketProvider>
+  );
+};
+
+const ProtectedChatTest = () => {
+  useSessionCheck();
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return (
+    <SocketProvider>
+      <ChatProvider>
+        <ChatTester />
+      </ChatProvider>
+    </SocketProvider>
+  );
+};
 
 const App = () => {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return <div>Loading...</div>;
@@ -22,35 +60,9 @@ const App = () => {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      {/* Wrap dashboard/chat routes with providers */}
-      <Route
-        path="/dashboard"
-        element={
-          <SocketProvider>
-            <ChatProvider>
-              <Dashboard />
-            </ChatProvider>
-          </SocketProvider>
-        }
-      />
-      <Route
-        path="/video-call/:callId"
-        element={
-          <SocketProvider>
-            <VideoCall />
-          </SocketProvider>
-        }
-      />
-      <Route
-        path="/chat-test"
-        element={
-          <SocketProvider>
-            <ChatProvider>
-              <ChatTester />
-            </ChatProvider>
-          </SocketProvider>
-        }
-      />
+      <Route path="/dashboard" element={<ProtectedDashboard />} />
+      <Route path="/video-call/:callId" element={<ProtectedVideoCall />} />
+      <Route path="/chat-test" element={<ProtectedChatTest />} />
     </Routes>
   );
 };

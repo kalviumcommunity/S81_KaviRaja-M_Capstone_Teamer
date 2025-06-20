@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import { Search, Plus, Archive } from 'lucide-react';
 import ChatItem from './ChatItem';
 import { activeChats, archivedChats } from './dummyData';
+import axios from 'axios';
+import { useAuth } from '../../../context/AuthContext';
 
 const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showArchived, setShowArchived] = useState(false);
-  
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const { user } = useAuth();
+
   const filterChats = (chats) => {
     return chats.filter(
       chat => 
@@ -21,6 +26,26 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   const filteredUnpinnedChats = filterChats(unpinnedChats);
   const filteredArchivedChats = filterChats(archivedChats);
   
+  const handleSearch = async (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    if (value.trim().length === 0) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await axios.get(`/api/users/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
+      // Exclude self and users already in chat list
+      const chatUserIds = [...activeChats, ...archivedChats].map(c => c._id || c.id);
+      setSearchResults(res.data.filter(u => u._id !== user._id && !chatUserIds.includes(u._id)));
+    } catch {
+      setSearchResults([]);
+    }
+    setIsSearching(false);
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -30,7 +55,6 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
           <Plus size={20} />
         </button>
       </div>
-      
       {/* Search */}
       <div className="px-4 py-2 bg-black">
         <div className="relative">
@@ -42,8 +66,32 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
             className="bg-gray-800 w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-700 text-white placeholder-gray-400"
             placeholder="Search or start new chat"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearch}
           />
+          {/* Show search results dropdown */}
+          {searchTerm && searchResults.length > 0 && (
+            <ul className="absolute left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+              {searchResults.map(u => (
+                <li
+                  key={u._id}
+                  className="p-3 hover:bg-gray-800 cursor-pointer text-white flex items-center gap-2"
+                  onClick={async () => {
+                    // Create or open chat with this user
+                    const res = await axios.post('/api/chat/create', { participantId: u._id }, { withCredentials: true });
+                    onSelectChat(res.data);
+                    setSearchTerm('');
+                    setSearchResults([]);
+                  }}
+                >
+                  <img src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`} alt={u.name} className="w-8 h-8 rounded-full mr-2" />
+                  <span>{u.name} <span className="text-gray-400">({u.username})</span></span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {isSearching && (
+            <div className="absolute left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-50 p-3 text-white">Searching...</div>
+          )}
         </div>
       </div>
 

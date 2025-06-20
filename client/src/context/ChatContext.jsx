@@ -5,13 +5,7 @@ const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
-  let socket;
-  try {
-    socket = useSocket();
-  } catch (e) {
-    // If socket is not ready, don't render children yet
-    return null;
-  }
+  const socket = useSocket();
 
   // Example: Listen for messages
   useEffect(() => {
@@ -20,6 +14,9 @@ export const ChatProvider = ({ children }) => {
     socket.on("message", handleMessage);
     return () => socket.off("message", handleMessage);
   }, [socket]);
+
+  // Optionally, show nothing until socket is ready
+  if (!socket) return null;
 
   return (
     <ChatContext.Provider value={{ messages, setMessages, socket }}>

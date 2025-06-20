@@ -13,10 +13,14 @@ import TaskMessage from './TaskMessage';
 import AnalyticsGraph from './AnalyticsGraph';
 import { useNavigate } from 'react-router-dom';
 import { useCall } from '../../../context/CallContext';
+import { useSocket } from '../../../context/SocketContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const ChatBox = ({ chat }) => {
   const navigate = useNavigate();
   const { joinCall } = useCall();
+  const { socket } = useSocket();
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [showCallModal, setShowCallModal] = useState(false);
@@ -136,13 +140,19 @@ const ChatBox = ({ chat }) => {
         id: Date.now(),
         type: 'text',
         content: message,
-        sender: 'You',
+        sender: user?.name || 'You',
+        senderId: user?._id,
+        chatId: chat.id,
         timestamp: new Date().toISOString(),
         status: 'sent'
       };
       setMessages(prev => [...prev, newMessage]);
       setMessage('');
       scrollToBottom(true);
+      // Real-time: emit to server
+      if (socket && chat?.id) {
+        socket.emit('sendMessage', { ...newMessage, chatId: chat.id });
+      }
     }
   };
 

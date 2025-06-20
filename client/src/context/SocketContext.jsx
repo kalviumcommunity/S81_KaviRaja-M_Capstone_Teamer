@@ -25,6 +25,7 @@ export const SocketProvider = ({ children }) => {
     }
   }, [user]);
 
+  // Always provide the context, even if socket is null
   return (
     <SocketContext.Provider value={socket}>
       {children}
@@ -33,9 +34,6 @@ export const SocketProvider = ({ children }) => {
 };
 
 export const useSocket = () => {
-  const socket = useContext(SocketContext);
-  if (!socket) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
-  return socket;
+  // Do not throw if socket is null, just return null
+  return useContext(SocketContext);
 };

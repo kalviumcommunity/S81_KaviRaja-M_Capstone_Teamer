@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const Signup = () => {
-  const { register } = useAuth();
+  const { register, user } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
@@ -15,6 +14,12 @@ const Signup = () => {
   });
   const [error, setError] = useState("");
 
+  // Redirect if already logged in
+  if (user) {
+    navigate("/dashboard");
+    return null; // Prevent rendering anything else
+  }
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -23,9 +28,9 @@ const Signup = () => {
     e.preventDefault();
     try {
       await register(formData.name, formData.email, formData.password, formData.username);
-      navigate("/login");
+      navigate("/login"); // Go to login page after signup
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      setError(err.message || "Registration failed");
     }
   };
 
