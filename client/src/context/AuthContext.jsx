@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    setUser, // <-- Add setUser to context value so it can be used in hooks
     loading,
     error,
     login,

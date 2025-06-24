@@ -9,14 +9,14 @@ const Dashboard = () => {
 
   return (
     <CallProvider>
-      <div className="flex h-full">
-        <div className="w-1/3 border-r">
+      <div className="flex h-screen w-screen bg-black overflow-hidden">
+        <div className="w-[30vw] min-w-[320px] max-w-[420px] h-full border-r border-gray-800 bg-gray-900">
           <ChatList
             onSelectChat={setSelectedChat}
             selectedChatId={selectedChat?.id || selectedChat?._id}
           />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 h-full bg-gray-900">
           <ChatBox chat={selectedChat} />
         </div>
       </div>

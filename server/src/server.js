@@ -4,13 +4,18 @@ import mongoose from "mongoose";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/authRoutes.js";
+import { createServer } from 'http';
+import configureSocket from './config/socket.js';
+import chatRoutes from './routes/chatRoutes.js';
 
 dotenv.config();
 const app = express();
 
-
-
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"];
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174", // Added for Vite dev server
+  "http://localhost:3000"
+];
 
 app.use(
   cors({
@@ -40,7 +45,7 @@ app.get('/',(req,res)=>{
 
 app.use(express.json());
 app.use(cookieParser());
-
+app.use("/api/users", authRoutes);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
@@ -48,8 +53,14 @@ mongoose
 
 app.use("/api/auth", authRoutes);
 
+const httpServer = createServer(app);
+const io = configureSocket(httpServer);
+app.set('io', io);
+app.use('/api/chat', chatRoutes);
+
+// Update the server listening part
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 
 

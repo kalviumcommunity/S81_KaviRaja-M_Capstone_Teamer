@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -10,9 +10,11 @@ const Login = () => {
   const [error, setError] = useState("");
 
   // Redirect if already logged in
-  if (user) {
-    navigate("/dashboard");
-  }
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -22,7 +24,7 @@ const Login = () => {
     e.preventDefault();
     try {
       await login(formData.email, formData.password);
-      navigate("/dashboard");
+      // navigate("/dashboard"); // Remove direct call, let useEffect handle it
     } catch (err) {
       setError(err.message || "Login failed");
     }

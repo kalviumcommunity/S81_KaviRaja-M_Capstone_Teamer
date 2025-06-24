@@ -163,14 +163,22 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email });
 
     const user = await User.findOne({ email });
     if (!user) {
+      console.log('User not found');
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.password) {
+      console.log('User has no password field:', user);
+      return res.status(500).json({ message: "User record corrupted: no password hash." });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Password mismatch');
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
@@ -181,9 +189,11 @@ export const login = async (req, res) => {
       sameSite: "Strict"
     });
 
+    console.log('Login successful:', user.email);
     res.status(200).json({ message: "Login successful", user });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    console.error('Login error:', error);
+    res.status(500).json({ message: "Server error", error: error.message, stack: error.stack });
   }
 };
 
@@ -201,5 +211,22 @@ export const getProfile = async (req, res) => {
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
+  }
+};
+
+export const searchUsers = async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query) return res.json([]);
+    const users = await User.find({
+      $or: [
+        { username: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } }
+      ]
+    }).select('-password');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Error searching users", error: error.message });
   }
 };
