@@ -27,6 +27,23 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     fetchChats();
   }, []);
 
+  // After fetching chats, request online users
+  useEffect(() => {
+    if (!socket || chats.length === 0) return;
+    const userIds = Array.from(new Set(chats.flatMap(c => c.participants.map(p => p._id))));
+    socket.emit('get_online_users', userIds, (onlineUserIds = []) => {
+      setChats(prevChats =>
+        prevChats.map(chat => ({
+          ...chat,
+          participants: chat.participants.map(p => ({
+            ...p,
+            isOnline: onlineUserIds.includes(p._id),
+          })),
+        }))
+      );
+    });
+  }, [socket, chats.length]);
+
   // Search users from backend
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -63,6 +80,23 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     socket.on('chat_created', handleChatCreated);
     return () => socket.off('chat_created', handleChatCreated);
   }, [socket, user]);
+
+  // Listen for user_status events (online/offline)
+  useEffect(() => {
+    if (!socket) return;
+    const handleUserStatus = ({ userId, status }) => {
+      setChats((prevChats) =>
+        prevChats.map((chat) => ({
+          ...chat,
+          participants: chat.participants.map((p) =>
+            p._id === userId ? { ...p, isOnline: status === 'online' } : p
+          ),
+        }))
+      );
+    };
+    socket.on('user_status', handleUserStatus);
+    return () => socket.off('user_status', handleUserStatus);
+  }, [socket]);
 
   // Add new chat to chat list after creating
   const handleSelectUser = async (u) => {

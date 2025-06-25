@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Paperclip, Send, MoreVertical, Phone, Video, Smile } from 'lucide-react';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 import { useChat } from '../../../context/ChatContext';
 import { useAuth } from '../../../context/AuthContext';
 import GroupMenu from './GroupMenu';
@@ -29,13 +31,32 @@ const ChatBox = ({ chat }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [polls, setPolls] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
 
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    function handleClickOutside(e) {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target) &&
+        !emojiButtonRef.current.contains(e.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
 
   if (!chat) {
     return (
@@ -53,6 +74,23 @@ const ChatBox = ({ chat }) => {
     if (input.trim()) {
       sendMessage(chat._id, input);
       setInput('');
+    }
+  };
+
+  const handleEmojiSelect = (emoji) => {
+    setInput(input + (emoji.native || emoji.emoji));
+    // Do NOT close the picker here
+  };
+
+  const handlePaperclipClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Placeholder: send file name as message. Replace with upload logic.
+      sendMessage(chat._id, `[File] ${file.name}`);
     }
   };
 
@@ -84,6 +122,13 @@ const ChatBox = ({ chat }) => {
     setTasks((prev) => prev.map(t => t.id === id ? { ...t, approved: true } : t));
   };
 
+  // Merge messages, polls, and tasks into a single array and sort by timestamp/id
+  const combinedItems = [
+    ...messages.filter(m => m.chatId === chat._id).map(m => ({ ...m, _type: 'message', time: new Date(m.timestamp || m.createdAt || Date.now()).getTime() })),
+    ...polls.map(p => ({ ...p, _type: 'poll', time: p.createdAt ? new Date(p.createdAt).getTime() : p.id })),
+    ...tasks.map(t => ({ ...t, _type: 'task', time: t.createdAt ? new Date(t.createdAt).getTime() : t.id })),
+  ].sort((a, b) => a.time - b.time);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -97,18 +142,31 @@ const ChatBox = ({ chat }) => {
               onClick={handleOpenGroupInfo}
             />
           ) : (
-            <img
-              src={(() => {
-                const other = chat.participants.find(p => p._id !== user._id);
-                return other?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
-              })()}
-              alt={(() => {
-                const other = chat.participants.find(p => p._id !== user._id);
-                return other?.name || 'User';
-              })()}
-              className="w-12 h-12 rounded-full object-cover cursor-pointer"
-              onClick={() => handleOpenUserProfile(chat.participants.find(p => p._id !== user._id))}
-            />
+            <div className="relative">
+              <img
+                src={(() => {
+                  const other = chat.participants.find(p => p._id !== user._id);
+                  return other?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
+                })()}
+                alt={(() => {
+                  const other = chat.participants.find(p => p._id !== user._id);
+                  return other?.name || 'User';
+                })()}
+                className="w-12 h-12 rounded-full object-cover cursor-pointer"
+                onClick={() => handleOpenUserProfile(chat.participants.find(p => p._id !== user._id))}
+              />
+              {/* Online/Offline dot */}
+              <span
+                className={`absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-black ${(() => {
+                  const other = chat.participants.find(p => p._id !== user._id);
+                  return other?.isOnline ? 'bg-green-500' : 'bg-gray-400';
+                })()}`}
+                title={(() => {
+                  const other = chat.participants.find(p => p._id !== user._id);
+                  return other?.isOnline ? 'Online' : 'Offline';
+                })()}
+              />
+            </div>
           )}
           <div className="cursor-pointer" onClick={isGroup ? handleOpenGroupInfo : () => handleOpenUserProfile(chat.participants.find(p => p._id !== user._id))}>
             <h2 className="text-lg font-semibold text-white">
@@ -157,39 +215,54 @@ const ChatBox = ({ chat }) => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-900">
-        {messages.filter(m => m.chatId === chat._id).map((msg, idx) => {
-          const senderId = msg.senderId || msg.sender;
-          return (
-            <div key={msg._id || idx} className={`flex ${senderId === user._id ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] rounded-lg px-4 py-2 ${senderId === user._id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-                {msg.content}
+        {combinedItems.map((item, idx) => {
+          if (item._type === 'message') {
+            const senderId = item.senderId || item.sender;
+            return (
+              <div key={item._id || idx} className={`flex ${senderId === user._id ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[70%] rounded-lg px-4 py-2 ${senderId === user._id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
+                  {item.content}
+                </div>
               </div>
-            </div>
-          );
+            );
+          }
+          if (item._type === 'poll') {
+            return <Poll key={item.id} poll={item} onVote={() => {}} currentUser={user} />;
+          }
+          if (item._type === 'task') {
+            return (
+              <TaskMessage
+                key={item.id}
+                task={item}
+                onComplete={handleCompleteTask}
+                onApprove={handleApproveTask}
+                isAdmin={isAdmin}
+                isAssignee={item.assignedTo === user.name}
+              />
+            );
+          }
+          return null;
         })}
-        {/* Polls */}
-        {polls.map((poll) => (
-          <Poll key={poll.id} poll={poll} onVote={() => {}} currentUser={user} />
-        ))}
-        {/* Tasks */}
-        {tasks.map((task) => (
-          <TaskMessage
-            key={task.id}
-            task={task}
-            onComplete={handleCompleteTask}
-            onApprove={handleApproveTask}
-            isAdmin={isAdmin}
-            isAssignee={task.assignedTo === user.name}
-          />
-        ))}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
       <form onSubmit={handleSend} className="p-4 border-t border-gray-800 bg-black flex items-center gap-2">
-        <button type="button" className="p-2 rounded hover:bg-gray-800 text-gray-400">
-          <Smile size={22} />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            className="p-2 rounded hover:bg-gray-800 text-gray-400"
+            onClick={() => setShowEmojiPicker(v => !v)}
+            ref={emojiButtonRef}
+          >
+            <Smile size={22} />
+          </button>
+          {showEmojiPicker && (
+            <div className="absolute bottom-12 left-0 z-50" ref={emojiPickerRef}>
+              <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="dark" />
+            </div>
+          )}
+        </div>
         <input
           type="text"
           className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -197,7 +270,13 @@ const ChatBox = ({ chat }) => {
           value={input}
           onChange={e => setInput(e.target.value)}
         />
-        <button type="button" className="p-2 rounded hover:bg-gray-800 text-gray-400">
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+        <button type="button" className="p-2 rounded hover:bg-gray-800 text-gray-400" onClick={handlePaperclipClick}>
           <Paperclip size={22} />
         </button>
         <button type="submit" className="p-2 rounded bg-blue-600 hover:bg-blue-700 text-white">
