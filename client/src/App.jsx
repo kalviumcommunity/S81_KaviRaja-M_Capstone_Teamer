@@ -11,6 +11,7 @@ import { SocketProvider } from "./context/SocketContext";
 import { ChatProvider } from "./context/ChatContext";
 import useSessionCheck from "./hooks/useSessionCheck";
 
+// Protected Routes
 const ProtectedDashboard = () => {
   useSessionCheck();
   const { user } = useAuth();

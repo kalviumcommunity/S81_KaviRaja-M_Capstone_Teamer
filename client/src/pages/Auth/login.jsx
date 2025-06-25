@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import axios from "axios";
+
+const API_BASE_URL = import.meta.env.VITE_APP_API_URL; // Define your API base URL here
 
 const Login = () => {
   const { login, user } = useAuth();
@@ -23,8 +26,11 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await login(formData.email, formData.password);
-      // navigate("/dashboard"); // Remove direct call, let useEffect handle it
+      const response = await axios.post(`${API_BASE_URL}/login`, {
+        email: formData.email,
+        password: formData.password,
+      });
+      await login(response.data.email, response.data.password);
     } catch (err) {
       setError(err.message || "Login failed");
     }
@@ -221,9 +227,7 @@ const Login = () => {
         <h2 className="text-3xl font-extrabold text-center text-black mb-4">
           Login to Teamer
         </h2>
-        {error && (
-          <p className="text-red-500 text-center mb-4">{error}</p>
-        )}
+        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-5">
           <input
             name="email"
