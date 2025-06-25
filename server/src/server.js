@@ -14,7 +14,8 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174", // Added for Vite dev server
-  "http://localhost:3000"
+  "http://localhost:3000",
+  "https://teamermain.netlify.app/"
 ];
 
 app.use(
@@ -39,9 +40,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/',(req,res)=>{
-  console.log('Hello from backend')
-})
+app.get('/', (req, res) => {
+  console.log('Hello from backend');
+  res.send("Hello from Teamer backend 🚀");
+});
+
 
 app.use(express.json());
 app.use(cookieParser());
