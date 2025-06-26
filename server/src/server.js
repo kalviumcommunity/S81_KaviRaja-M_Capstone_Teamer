@@ -15,7 +15,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174", // Added for Vite dev server
   "http://localhost:3000",
-  "https://teamermain.netlify.app/"
+  "https://lovely-cat-e837ab.netlify.app"
 ];
 
 app.use(
@@ -68,3 +68,4 @@ httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 
 
+         
