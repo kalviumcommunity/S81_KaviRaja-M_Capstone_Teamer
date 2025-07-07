@@ -1,5 +1,11 @@
 import { Chat } from '../models/Chat.js';
 import { User } from '../models/userModel.js';
+import multer from 'multer';
+import cloudinary from '../config/cloudinary.js';
+import { Readable } from 'stream';
+
+const storage = multer.memoryStorage();
+export const upload = multer({ storage });
 
 export const createChat = async (req, res) => {
   try {
@@ -108,5 +114,49 @@ export const getChatMessages = async (req, res) => {
     res.json(chat.messages || []);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching messages', error: error.message });
+  }
+};
+
+export const uploadFile = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { chatId } = req.body;
+    const userId = req.user._id;
+    console.log('Uploading file:', {
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      size: req.file.size
+    });
+    cloudinary.uploader.upload_stream({ resource_type: 'auto' }, async (err, result) => {
+      if (err) {
+        console.error('Cloudinary upload error:', err);
+        return res.status(500).json({ message: 'Cloudinary upload error', error: err.message, details: err });
+      }
+      console.log('Cloudinary upload result:', result);
+      const newMessage = {
+        sender: userId,
+        content: result.secure_url,
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        isFile: true,
+        timestamp: new Date(),
+        readBy: [userId],
+        chatId,
+      };
+      const chat = await Chat.findByIdAndUpdate(
+        chatId,
+        {
+          $push: { messages: newMessage },
+          $set: { lastMessage: newMessage },
+        },
+        { new: true }
+      ).populate('participants', 'username name email');
+      const savedMessage = chat.messages[chat.messages.length - 1];
+      req.app.get('io').to(chatId).emit('new_message', { chat, message: savedMessage });
+      res.json({ url: result.secure_url, chat, message: savedMessage });
+    }).end(req.file.buffer);
+  } catch (error) {
+    console.error('File upload error:', error);
+    res.status(500).json({ message: 'File upload error', error: error.message, details: error });
   }
 };

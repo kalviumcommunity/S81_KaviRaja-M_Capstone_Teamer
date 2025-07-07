@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useSocket } from "./SocketContext";
 import { useAuth } from "./AuthContext";
+import axios from "axios";
 
 const ChatContext = createContext();
 
@@ -21,7 +22,11 @@ export const ChatProvider = ({ children }) => {
     if (!socket) return;
     const handleNewMessage = (payload) => {
       // Extract the message object from the payload
-      const msg = payload.message || payload;
+      let msg = payload.message || payload;
+      // Defensive: ensure chatId is present
+      if (!msg.chatId && payload.chat && payload.chat._id) {
+        msg.chatId = payload.chat._id;
+      }
       setMessages((prev) => [...prev, msg]);
     };
     socket.on("new_message", handleNewMessage);
@@ -40,8 +45,23 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  // Load messages for a chat
+  const loadMessages = async (chatId, token) => {
+    try {
+      const res = await axios.get(`/api/chat/${chatId}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      // Defensive: ensure every message has chatId
+      setMessages(res.data.map(m => ({ ...m, chatId })));
+    } catch (err) {
+      setMessages([]);
+    }
+  };
+
   return (
-    <ChatContext.Provider value={{ messages, setMessages, sendMessage, socket }}>
+    <ChatContext.Provider
+      value={{ messages, setMessages, sendMessage, socket, loadMessages }}
+    >
       {children}
     </ChatContext.Provider>
   );

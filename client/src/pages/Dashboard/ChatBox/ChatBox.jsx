@@ -14,10 +14,11 @@ import TaskMessage from './TaskMessage';
 import ScheduleCall from './ScheduleCall';
 import AnalyticsGraph from './AnalyticsGraph';
 import VideoCall from '../../../pages/VideoCall/VideoCall';
+import { uploadChatFile } from '../../../utils/fetchApi';
 
 const ChatBox = ({ chat }) => {
   const { user } = useAuth();
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, loadMessages } = useChat();
   const [input, setInput] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
@@ -32,6 +33,8 @@ const ChatBox = ({ chat }) => {
   const [polls, setPolls] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -57,6 +60,14 @@ const ChatBox = ({ chat }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
+
+  useEffect(() => {
+    if (chat && chat._id) {
+      const token = localStorage.getItem('token');
+      loadMessages(chat._id, token);
+    }
+    // eslint-disable-next-line
+  }, [chat && chat._id]);
 
   if (!chat) {
     return (
@@ -86,11 +97,24 @@ const ChatBox = ({ chat }) => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Placeholder: send file name as message. Replace with upload logic.
-      sendMessage(chat._id, `[File] ${file.name}`);
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { // 20MB limit
+      setUploadError('File too large (max 20MB)');
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const token = localStorage.getItem('token');
+      await uploadChatFile({ chatId: chat._id, file, token });
+      // Always refresh messages after upload in case socket event is missed
+      await loadMessages(chat._id, token);
+    } catch (err) {
+      setUploadError('Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -221,7 +245,42 @@ const ChatBox = ({ chat }) => {
             return (
               <div key={item._id || idx} className={`flex ${senderId === user._id ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] rounded-lg px-4 py-2 ${senderId === user._id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-                  {item.content}
+                  {item.isFile ? (
+                    item.fileType && item.fileType.startsWith('image/') ? (
+                      <div className="flex flex-col items-end">
+                        <div className="relative group">
+                          <img
+                            src={item.content}
+                            alt={item.fileName || 'Image'}
+                            className="max-w-[220px] max-h-[320px] rounded-lg shadow border border-gray-700 object-cover cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => window.open(item.content, '_blank')}
+                          />
+                          <span className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-0.5 rounded opacity-80 group-hover:opacity-100">
+                            {item.fileName || 'Image'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg text-blue-200">
+                          <span role="img" aria-label="file">📎</span>
+                          <span className="truncate max-w-[120px]">{item.fileName || 'File'}</span>
+                          <a
+                            href={item.content}
+                            download={item.fileName}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+                          >
+                            Download
+                          </a>
+                        </div>
+                        <span className="text-xs text-gray-400 mt-1">{item.fileType}</span>
+                      </div>
+                    )
+                  ) : (
+                    item.content
+                  )}
                 </div>
               </div>
             );
@@ -282,6 +341,8 @@ const ChatBox = ({ chat }) => {
         <button type="submit" className="p-2 rounded bg-blue-600 hover:bg-blue-700 text-white">
           <Send size={22} />
         </button>
+        {uploadError && <div className="text-red-400 text-xs ml-2">{uploadError}</div>}
+        {uploading && <div className="text-blue-400 text-xs ml-2">Uploading...</div>}
       </form>
 
       {/* Modals and Portals */}
