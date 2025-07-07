@@ -42,6 +42,7 @@ const ChatBox = ({ chat }) => {
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
+  const isCallerRef = useRef(false);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -72,17 +73,37 @@ const ChatBox = ({ chat }) => {
     // eslint-disable-next-line
   }, [chat && chat._id]);
 
+  const handleStartVoiceCall = () => {
+    const other = chat.participants.find(p => p._id !== user._id);
+    setVoiceCallCallee(other);
+    setIsCaller(true);
+    isCallerRef.current = true;
+    setShowVoiceCall(true);
+  };
+
   useEffect(() => {
     if (!socket) return;
     const handleIncomingCall = ({ fromUserId }) => {
-      const fromUser = chat.participants.find(p => p._id === fromUserId);
-      setVoiceCallCallee(fromUser);
-      setIsCaller(false);
-      setShowVoiceCall(true);
+      // Only open modal as callee if the current user is NOT the caller and not already the caller
+      if (user._id !== fromUserId && !isCallerRef.current) {
+        const fromUser = chat.participants.find(p => p._id === fromUserId);
+        setVoiceCallCallee(fromUser);
+        setIsCaller(false);
+        isCallerRef.current = false;
+        setShowVoiceCall(true);
+      }
     };
     socket.on('incoming_call', handleIncomingCall);
     return () => socket.off('incoming_call', handleIncomingCall);
-  }, [socket, chat]);
+  }, [socket, chat, user._id, isCaller]);
+
+  // Ensure isCallerRef is reset when modal closes
+  useEffect(() => {
+    if (!showVoiceCall) {
+      setIsCaller(false);
+      isCallerRef.current = false;
+    }
+  }, [showVoiceCall]);
 
   if (!chat) {
     return (
@@ -131,14 +152,6 @@ const ChatBox = ({ chat }) => {
     } finally {
       setUploading(false);
     }
-  };
-
-  const handleStartVoiceCall = () => {
-    // Find the other user in the chat
-    const other = chat.participants.find(p => p._id !== user._id);
-    setVoiceCallCallee(other);
-    setIsCaller(true);
-    setShowVoiceCall(true);
   };
 
   // Modal handlers
@@ -403,7 +416,12 @@ const ChatBox = ({ chat }) => {
       {showVoiceCall && voiceCallCallee && (
         <VoiceCallModal
           chat={chat}
-          onClose={() => { setShowVoiceCall(false); setVoiceCallCallee(null); }}
+          onClose={() => {
+            setShowVoiceCall(false);
+            setVoiceCallCallee(null);
+            setIsCaller(false);
+            isCallerRef.current = false;
+          }}
           callee={voiceCallCallee}
           isCaller={isCaller}
         />
