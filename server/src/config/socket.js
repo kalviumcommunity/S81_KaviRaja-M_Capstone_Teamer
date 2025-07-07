@@ -94,6 +94,42 @@ const configureSocket = (server) => {
       }
     });
 
+    // --- Voice Call Signaling ---
+    socket.on('call_user', ({ toUserId, fromUserId, offer }) => {
+      const recipientSocket = onlineUsers.get(toUserId);
+      if (recipientSocket) {
+        io.to(recipientSocket).emit('incoming_call', { fromUserId, offer });
+      }
+    });
+
+    socket.on('answer_call', ({ toUserId, answer, fromUserId }) => {
+      const recipientSocket = onlineUsers.get(toUserId);
+      if (recipientSocket) {
+        io.to(recipientSocket).emit('call_answered', { answer, fromUserId });
+      }
+    });
+
+    socket.on('call_connected', ({ toUserId }) => {
+      const recipientSocket = onlineUsers.get(toUserId);
+      if (recipientSocket) {
+        io.to(recipientSocket).emit('call_connected');
+      }
+    });
+
+    socket.on('ice_candidate', ({ toUserId, candidate }) => {
+      const recipientSocket = onlineUsers.get(toUserId);
+      if (recipientSocket) {
+        io.to(recipientSocket).emit('ice_candidate', { candidate });
+      }
+    });
+
+    socket.on('end_call', ({ toUserId }) => {
+      const recipientSocket = onlineUsers.get(toUserId);
+      if (recipientSocket) {
+        io.to(recipientSocket).emit('call_ended');
+      }
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
       const disconnectedUser = socket.userId;

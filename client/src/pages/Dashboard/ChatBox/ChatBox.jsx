@@ -14,11 +14,12 @@ import TaskMessage from './TaskMessage';
 import ScheduleCall from './ScheduleCall';
 import AnalyticsGraph from './AnalyticsGraph';
 import VideoCall from '../../../pages/VideoCall/VideoCall';
+import VoiceCallModal from './VoiceCallModal';
 import { uploadChatFile } from '../../../utils/fetchApi';
 
 const ChatBox = ({ chat }) => {
   const { user } = useAuth();
-  const { messages, sendMessage, loadMessages } = useChat();
+  const { messages, sendMessage, loadMessages, socket } = useChat();
   const [input, setInput] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
@@ -35,6 +36,8 @@ const ChatBox = ({ chat }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [voiceCallCallee, setVoiceCallCallee] = useState(null);
+  const [isCaller, setIsCaller] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -68,6 +71,18 @@ const ChatBox = ({ chat }) => {
     }
     // eslint-disable-next-line
   }, [chat && chat._id]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleIncomingCall = ({ fromUserId }) => {
+      const fromUser = chat.participants.find(p => p._id === fromUserId);
+      setVoiceCallCallee(fromUser);
+      setIsCaller(false);
+      setShowVoiceCall(true);
+    };
+    socket.on('incoming_call', handleIncomingCall);
+    return () => socket.off('incoming_call', handleIncomingCall);
+  }, [socket, chat]);
 
   if (!chat) {
     return (
@@ -116,6 +131,14 @@ const ChatBox = ({ chat }) => {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleStartVoiceCall = () => {
+    // Find the other user in the chat
+    const other = chat.participants.find(p => p._id !== user._id);
+    setVoiceCallCallee(other);
+    setIsCaller(true);
+    setShowVoiceCall(true);
   };
 
   // Modal handlers
@@ -214,7 +237,7 @@ const ChatBox = ({ chat }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 relative">
-          <button onClick={() => setShowVoiceCall(true)} className="p-2 rounded hover:bg-gray-800 text-green-400" title="Voice Call">
+          <button onClick={handleStartVoiceCall} className="p-2 rounded hover:bg-gray-800 text-green-400" title="Voice Call">
             <Phone size={20} />
           </button>
           <button onClick={() => setShowVideoCall(true)} className="p-2 rounded hover:bg-gray-800 text-blue-400" title="Video Call">
@@ -241,10 +264,18 @@ const ChatBox = ({ chat }) => {
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-900">
         {combinedItems.map((item, idx) => {
           if (item._type === 'message') {
-            const senderId = item.senderId || item.sender;
+            // Robust senderId extraction for all cases
+            let senderId = '';
+            if (item.sender && typeof item.sender === 'object') {
+              senderId = item.sender._id || item.sender.id || '';
+            } else {
+              senderId = item.sender || item.senderId || '';
+            }
+            const isMine = senderId.toString() === user._id.toString();
             return (
-              <div key={item._id || idx} className={`flex ${senderId === user._id ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] rounded-lg px-4 py-2 ${senderId === user._id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
+              <div key={item._id || idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[70%] rounded-lg px-4 py-2 mb-1 ${isMine ? 'bg-blue-600 text-white ml-auto' : 'bg-gray-800 text-gray-200 mr-auto'}`}
+                  style={{ borderTopRightRadius: isMine ? 0 : undefined, borderTopLeftRadius: !isMine ? 0 : undefined }}>
                   {item.isFile ? (
                     item.fileType && item.fileType.startsWith('image/') ? (
                       <div className="flex flex-col items-end">
@@ -369,16 +400,13 @@ const ChatBox = ({ chat }) => {
           </div>
         </div>
       )}
-      {showVoiceCall && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
-          <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md relative flex flex-col items-center">
-            <button onClick={() => setShowVoiceCall(false)} className="absolute top-2 right-2 text-gray-400 hover:text-white">✕</button>
-            <Phone size={48} className="text-green-400 mb-4" />
-            <h2 className="text-white text-xl mb-2">Voice Call</h2>
-            <p className="text-gray-300 mb-4">Voice call UI coming soon...</p>
-            <button onClick={() => setShowVoiceCall(false)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">End Call</button>
-          </div>
-        </div>
+      {showVoiceCall && voiceCallCallee && (
+        <VoiceCallModal
+          chat={chat}
+          onClose={() => { setShowVoiceCall(false); setVoiceCallCallee(null); }}
+          callee={voiceCallCallee}
+          isCaller={isCaller}
+        />
       )}
       {showVideoCall && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-80 z-50">
