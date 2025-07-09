@@ -17,7 +17,10 @@ const messageSchema = new mongoose.Schema({
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  fileName: String,
+  fileType: String,
+  isFile: { type: Boolean, default: false }
 });
 
 const chatSchema = new mongoose.Schema({

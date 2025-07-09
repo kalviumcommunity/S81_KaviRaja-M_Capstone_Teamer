@@ -82,36 +82,39 @@ const ScheduleCall = ({ onClose, onSchedule, group }) => {
                 Select Participants ({group.members?.length} available)
               </label>
               <div className="max-h-40 overflow-y-auto bg-gray-800 rounded-lg">
-                {group.members?.length > 0 ? (
-                  group.members.map(member => (
-                    <label 
-                      key={member.id} 
-                      className="flex items-center p-2 hover:bg-gray-700 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedParticipants.includes(member.id)}
-                        onChange={() => {
-                          setSelectedParticipants(prev =>
-                            prev.includes(member.id)
-                              ? prev.filter(id => id !== member.id)
-                              : [...prev, member.id]
-                          );
-                        }}
-                        className="mr-2"
-                      />
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full overflow-hidden mr-2">
-                          <img 
-                            src={member.avatar} 
-                            alt={member.name}
-                            className="w-full h-full object-cover"
-                          />
+                {Array.isArray(group.members) && group.members.length > 0 ? (
+                  group.members.map(member => {
+                    const memberId = member.id || member._id || member.name;
+                    return (
+                      <label 
+                        key={memberId}
+                        className="flex items-center p-2 hover:bg-gray-700 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedParticipants.includes(memberId)}
+                          onChange={() => {
+                            setSelectedParticipants(prev =>
+                              prev.includes(memberId)
+                                ? prev.filter(id => id !== memberId)
+                                : [...prev, memberId]
+                            );
+                          }}
+                          className="mr-2"
+                        />
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full overflow-hidden mr-2">
+                            <img 
+                              src={member.avatar} 
+                              alt={member.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <span className="text-white">{member.name}</span>
                         </div>
-                        <span className="text-white">{member.name}</span>
-                      </div>
-                    </label>
-                  ))
+                      </label>
+                    );
+                  })
                 ) : (
                   <p className="text-gray-400 p-2">No participants available</p>
                 )}

@@ -2,6 +2,9 @@ import React from 'react';
 import { CheckCircle, CheckCircle2 } from 'lucide-react';
 
 const TaskMessage = ({ task, onComplete, onApprove, isAdmin, isAssignee }) => {
+  // Debug: log task state as string
+  console.log('TaskMessage props:', JSON.stringify({ task, isAdmin, isAssignee, completed: task.completed, approved: task.approved, id: task.id }));
+
   return (
     <div className="bg-gray-800 rounded-lg p-4 max-w-[80%] break-words">
       <div className="flex items-center justify-between mb-2">
