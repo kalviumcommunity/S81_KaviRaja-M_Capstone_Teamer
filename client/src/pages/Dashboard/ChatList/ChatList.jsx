@@ -4,6 +4,8 @@ import ChatItem from './ChatItem';
 import axios from 'axios';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocket } from '../../../context/SocketContext';
+import { useChat } from '../../../context/ChatContext';
+import GroupCreateModal from './GroupCreateModal';
 
 const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,8 +13,10 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [chats, setChats] = useState([]); // Real chat list from backend
+  const [showGroupModal, setShowGroupModal] = useState(false);
   const { user } = useAuth();
   const socket = useSocket();
+  const { getUnreadCount, markChatAsRead } = useChat();
 
   // Fetch user's chats from backend on mount
   useEffect(() => {
@@ -55,7 +59,8 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     }
     setIsSearching(true);
     try {
-      const res = await axios.get(`/api/users/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
+      // Use correct backend route for user search
+      const res = await axios.get(`/api/auth/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
       // Exclude self and users already in chat list
       const chatUserIds = chats.flatMap(c => c.participants.map(p => p._id)).filter(id => id !== user._id);
       setSearchResults(res.data.filter(u => u._id !== user._id && !chatUserIds.includes(u._id)));
@@ -124,14 +129,14 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 bg-black flex justify-between items-center">
         <h1 className="text-xl font-semibold text-white">Chats</h1>
       </div>
       {/* Search */}
-      <div className="px-4 py-2 bg-black">
-        <div className="relative">
+      <div className="px-4 py-2 bg-black flex items-center gap-2">
+        <div className="relative flex-1">
           <input
             type="text"
             className="bg-gray-800 w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-700 text-white placeholder-gray-400"
@@ -158,32 +163,60 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
             <div className="absolute left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-50 p-3 text-white">Searching...</div>
           )}
         </div>
+        <button
+          className="ml-2 p-2 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center"
+          title="Create Group"
+          onClick={() => setShowGroupModal(true)}
+        >
+          <Plus size={20} />
+        </button>
       </div>
-      {/* Chat list */}
-      <div className="flex-1 overflow-y-auto bg-black">
-        {filteredChats.length > 0 ? (
-          filteredChats.map(chat => {
-            const other = chat.participants.find(p => p._id !== user._id);
-            return (
-              <div key={chat._id} onClick={() => onSelectChat(chat)}>
-                <ChatItem
-                  chat={{
-                    ...chat,
-                    name: other?.name || other?.username,
-                    avatar: other?.avatar,
-                    isOnline: other?.isOnline,
-                    lastSeen: other?.lastSeen,
-                  }}
-                  isSelected={chat._id === selectedChatId}
-                  onClick={() => onSelectChat(chat)}
-                />
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center py-8 text-gray-400">No chats found</div>
-        )}
-      </div>
+      {showGroupModal && (
+        <GroupCreateModal
+          onClose={() => setShowGroupModal(false)}
+          onGroupCreated={chat => {
+            setChats(prev => [chat, ...prev]);
+            setShowGroupModal(false);
+            onSelectChat(chat);
+          }}
+          existingUsers={chats.flatMap(c => c.participants)}
+        />
+      )}
+  // Chat list
+  <div className="flex-1 min-h-0 overflow-y-auto bg-black">
+    {filteredChats.length > 0 ? (
+      filteredChats.map(chat => {
+        const other = chat.participants.find(p => p._id !== user._id);
+        const unreadCount = getUnreadCount(chat._id);
+        return (
+          <div key={chat._id} onClick={() => {
+            setSearchTerm('');
+            onSelectChat(chat);
+            markChatAsRead(chat._id);
+          }}>
+            <ChatItem
+              chat={{
+                ...chat,
+                name: other?.name || other?.username,
+                avatar: other?.avatar,
+                isOnline: other?.isOnline,
+                lastSeen: other?.lastSeen,
+                unreadCount,
+              }}
+              isSelected={chat._id === selectedChatId}
+              onClick={() => {
+                setSearchTerm('');
+                onSelectChat(chat);
+                markChatAsRead(chat._id);
+              }}
+            />
+          </div>
+        );
+      })
+    ) : (
+      <div className="text-center py-8 text-gray-400">No chats found</div>
+    )}
+  </div>
     </div>
   );
 };

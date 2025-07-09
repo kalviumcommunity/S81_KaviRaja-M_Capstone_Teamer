@@ -66,21 +66,39 @@ const configureSocket = (server) => {
       });
     });
 
-    // Real-time message sending event
+    // Real-time message sending event (now saves to DB)
     socket.on('sendMessage', async (data) => {
       try {
         const { chatId, content, senderId } = data;
         const chatIdStr = chatId?.toString?.() || chatId;
         const senderIdStr = senderId?.toString?.() || senderId;
-        // Find chat and participants
-        const { Chat } = await import('../models/Chat.js'); // FIXED
-        const chat = await Chat.findById(chatIdStr).populate('participants', '_id');
+        // Find chat
+        const { Chat } = await import('../models/Chat.js');
+        const chat = await Chat.findById(chatIdStr);
         if (!chat) return;
+        // Defensive: ensure content is not empty
+        if (!content || typeof content !== 'string' || !content.trim()) return;
+        // Create new message object
+        const newMessage = {
+          sender: senderIdStr,
+          content,
+          timestamp: new Date(),
+          readBy: [senderIdStr],
+          chatId: chatIdStr,
+        };
+        // Save message to chat
+        chat.messages.push(newMessage);
+        chat.lastMessage = newMessage;
+        await chat.save();
+        // Populate sender for frontend display
+        const populatedChat = await Chat.findById(chatIdStr)
+          .populate('participants', 'username name email')
+          .populate('messages.sender', 'username name');
+        const savedMessage = populatedChat.messages[populatedChat.messages.length - 1];
         // Emit to the chat room
-        console.log(`Emitting new_message to room ${chatIdStr} from sender ${senderIdStr}`); // <-- LOG
         io.to(chatIdStr).emit('new_message', {
           chat: { _id: chatIdStr },
-          message: { ...data, chatId: chatIdStr, senderId: senderIdStr }
+          message: savedMessage
         });
       } catch (err) {
         console.error('Socket sendMessage error:', err);
@@ -127,6 +145,35 @@ const configureSocket = (server) => {
       const recipientSocket = onlineUsers.get(toUserId);
       if (recipientSocket) {
         io.to(recipientSocket).emit('call_ended');
+      }
+    });
+
+    // Real-time poll, task, and schedule events
+    socket.on('new_poll', (payload) => {
+      if (payload && payload.chatId) {
+        io.to(payload.chatId.toString()).emit('new_poll', payload);
+      }
+    });
+    socket.on('new_task', (payload) => {
+      if (payload && payload.chatId) {
+        io.to(payload.chatId.toString()).emit('new_task', payload);
+      }
+    });
+    socket.on('new_schedule', (payload) => {
+      if (payload && payload.chatId) {
+        io.to(payload.chatId.toString()).emit('new_schedule', payload);
+      }
+    });
+
+    // Real-time task completion and approval events
+    socket.on('task_completed', ({ taskId, chatId }) => {
+      if (chatId && taskId) {
+        io.to(chatId.toString()).emit('task_completed', { taskId });
+      }
+    });
+    socket.on('task_approved', ({ taskId, chatId }) => {
+      if (chatId && taskId) {
+        io.to(chatId.toString()).emit('task_approved', { taskId });
       }
     });
 

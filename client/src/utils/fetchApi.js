@@ -12,3 +12,25 @@ export const uploadChatFile = async ({ chatId, file, token }) => {
   });
   return res.data;
 };
+
+// Task API
+export const fetchTasks = async (chatId, token) => {
+  const res = await axios.get(`/api/tasks/${chatId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+export const createTask = async (task, token) => {
+  const res = await axios.post('/api/tasks', task, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+export const updateTask = async (taskId, updates, token) => {
+  const res = await axios.patch(`/api/tasks/${taskId}`, updates, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.data;
+};

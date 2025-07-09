@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { X, Users, CheckCircle } from 'lucide-react';
 
-const TaskAssignmentModal = ({ onClose, onAssignTask, groupMembers }) => {
+const TaskAssignmentModal = ({ onClose, onAssignTask, groupMembers, isAdmin }) => {
   const [taskDescription, setTaskDescription] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isAdmin) {
+      setError('You do not have access to assign tasks to others.');
+      return;
+    }
     if (taskDescription && selectedMember) {
       onAssignTask(taskDescription, selectedMember);
       onClose();
@@ -22,6 +27,10 @@ const TaskAssignmentModal = ({ onClose, onAssignTask, groupMembers }) => {
             <X size={24} />
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 text-red-400 text-sm text-center">{error}</div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -45,7 +54,7 @@ const TaskAssignmentModal = ({ onClose, onAssignTask, groupMembers }) => {
               >
                 <option value="">Select a member</option>
                 {groupMembers?.map(member => (
-                  <option key={member.id} value={member.name}>
+                  <option key={member.id || member._id || member.name} value={member.name}>
                     {member.name}
                   </option>
                 ))}
