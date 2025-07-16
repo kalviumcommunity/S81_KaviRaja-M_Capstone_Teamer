@@ -1,12 +1,26 @@
 import axios from 'axios';
 
-export const uploadChatFile = async ({ chatId, file, token }) => {
+// Create an axios instance
+const api = axios.create();
+
+// Add a request interceptor to include JWT if present
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export const uploadChatFile = async ({ chatId, file }) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('chatId', chatId);
-  const res = await axios.post('/api/chat/upload-file', formData, {
+  const res = await api.post('/api/chat/upload-file', formData, {
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'multipart/form-data',
     },
   });
@@ -14,23 +28,36 @@ export const uploadChatFile = async ({ chatId, file, token }) => {
 };
 
 // Task API
-export const fetchTasks = async (chatId, token) => {
-  const res = await axios.get(`/api/tasks/${chatId}`, {
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
+export const fetchTasks = async (chatId) => {
+  const res = await api.get(`/api/tasks/${chatId}`);
   return res.data;
 };
 
-export const createTask = async (task, token) => {
-  const res = await axios.post('/api/tasks', task, {
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
+export const createTask = async (task) => {
+  const res = await api.post('/api/tasks', task);
   return res.data;
 };
 
-export const updateTask = async (taskId, updates, token) => {
-  const res = await axios.patch(`/api/tasks/${taskId}`, updates, {
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
+export const updateTask = async (taskId, updates) => {
+  const res = await api.patch(`/api/tasks/${taskId}`, updates);
   return res.data;
 };
+
+// Poll API
+export const fetchPolls = async (chatId) => {
+  const res = await api.get(`/api/polls/${chatId}`);
+  return res.data;
+};
+
+// Schedule API
+export const fetchSchedules = async (chatId) => {
+  const res = await api.get(`/api/schedules/${chatId}`);
+  return res.data;
+};
+
+export const createSchedule = async (schedule) => {
+  const res = await api.post('/api/schedules', schedule);
+  return res.data;
+};
+
+export default api;

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../../context/AuthContext';
 import { Plus, Minus, X } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 
 const CreatePoll = ({ onClose, onCreatePoll }) => {
+  const { user } = useAuth();
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [multipleAnswers, setMultipleAnswers] = useState(false);
@@ -30,12 +32,15 @@ const CreatePoll = ({ onClose, onCreatePoll }) => {
     e.preventDefault();
     const validOptions = options.filter(opt => opt.trim());
     if (question.trim() && validOptions.length >= 2) {
+      // Backend expects options as array of { text: string }
       onCreatePoll({
         question,
-        options: validOptions,
+        options: validOptions.map(opt => ({ text: opt })),
         multipleAnswers,
         showVoters,
+        canChangeVote: true, // Always allow changing vote
         expiresAt,
+        creator: user ? { _id: user._id, name: user.name, username: user.username } : undefined,
       });
     }
   };
@@ -95,6 +100,7 @@ const CreatePoll = ({ onClose, onCreatePoll }) => {
           </div>
 
           <div className="space-y-3 mb-6">
+            {/* Always allow users to change their vote; no checkbox needed */}
             <div className="flex items-center">
               <input
                 type="checkbox"

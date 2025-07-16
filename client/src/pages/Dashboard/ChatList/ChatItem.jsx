@@ -44,7 +44,7 @@ const ChatItem = ({ chat, isSelected, onClick }) => {
       <div className="relative">
         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
           <img 
-            src={avatar} 
+            src={avatar ? `${avatar.startsWith('http') ? '' : 'http://localhost:5000'}${avatar}${chat.avatarUpdatedAt ? `?t=${chat.avatarUpdatedAt}` : ''}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
             alt={name} 
             className="w-full h-full object-cover"
             onError={(e) => {

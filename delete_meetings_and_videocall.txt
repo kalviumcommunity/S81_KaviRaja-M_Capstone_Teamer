@@ -1,0 +1,7 @@
+Delete all code and files related to:
+- Meetings (Meeting model, controller, routes, frontend components)
+- VideoCall (all frontend and backend logic)
+
+Then, re-implement a simple meeting feature:
+- Meeting creation form (participants, date, time, duration, description)
+- After creation, a small meeting div (like poll) appears in the chat UI for all invited users, in real time, without refresh.

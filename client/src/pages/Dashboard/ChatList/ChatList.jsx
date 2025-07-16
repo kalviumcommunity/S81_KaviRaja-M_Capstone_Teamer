@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Archive } from 'lucide-react';
 import ChatItem from './ChatItem';
-import axios from 'axios';
+import api from '../../../utils/fetchApi';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocket } from '../../../context/SocketContext';
 import { useChat } from '../../../context/ChatContext';
@@ -12,7 +12,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [showArchived, setShowArchived] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [chats, setChats] = useState([]); // Real chat list from backend
+  const { chats, setChats } = useChat(); // Use global chats from context
   const [showGroupModal, setShowGroupModal] = useState(false);
   const { user } = useAuth();
   const socket = useSocket();
@@ -22,13 +22,14 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await axios.get('/api/chat/user-chats', { withCredentials: true });
+        const res = await api.get('/api/chat/user-chats');
         setChats(res.data);
       } catch {
         setChats([]);
       }
     };
-    fetchChats();
+    // Only fetch if not already loaded
+    if (!chats || chats.length === 0) fetchChats();
   }, []);
 
   // After fetching chats, request online users
@@ -60,7 +61,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     setIsSearching(true);
     try {
       // Use correct backend route for user search
-      const res = await axios.get(`/api/auth/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
+      const res = await api.get(`/api/auth/search?q=${encodeURIComponent(value)}`);
       // Exclude self and users already in chat list
       const chatUserIds = chats.flatMap(c => c.participants.map(p => p._id)).filter(id => id !== user._id);
       setSearchResults(res.data.filter(u => u._id !== user._id && !chatUserIds.includes(u._id)));
@@ -70,7 +71,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     setIsSearching(false);
   };
 
-  // Real-time: listen for new chat creation
+  // Real-time: listen for new chat creation and avatar updates
   useEffect(() => {
     if (!socket) return;
     const handleChatCreated = (chat) => {
@@ -82,9 +83,17 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
         });
       }
     };
+    // WhatsApp-like: update avatar in searchResults if present
+    const handleAvatarUpdate = ({ userId, avatar }) => {
+      setSearchResults(prev => prev.map(u => u._id === userId ? { ...u, avatar } : u));
+    };
     socket.on('chat_created', handleChatCreated);
-    return () => socket.off('chat_created', handleChatCreated);
-  }, [socket, user]);
+    socket.on('user_avatar_updated', handleAvatarUpdate);
+    return () => {
+      socket.off('chat_created', handleChatCreated);
+      socket.off('user_avatar_updated', handleAvatarUpdate);
+    };
+  }, [socket, user, setChats]);
 
   // Listen for user_status events (online/offline)
   useEffect(() => {
@@ -101,11 +110,11 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     };
     socket.on('user_status', handleUserStatus);
     return () => socket.off('user_status', handleUserStatus);
-  }, [socket]);
+  }, [socket, setChats]);
 
   // Add new chat to chat list after creating
   const handleSelectUser = async (u) => {
-    const res = await axios.post('/api/chat/create', { participantId: u._id }, { withCredentials: true });
+    const res = await api.post('/api/chat/create', { participantId: u._id });
     // Emit socket event for real-time chat creation
     if (socket) {
       socket.emit('chat_created', res.data);
@@ -127,6 +136,9 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
       other?.username?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
+
+  // Always use the latest chat object for rendering (for real-time avatar updates)
+  const getLatestChat = (chatId) => chats.find(c => c._id === chatId);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -153,7 +165,11 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
                   className="p-3 hover:bg-gray-800 cursor-pointer text-white flex items-center gap-2"
                   onClick={() => handleSelectUser(u)}
                 >
-                  <img src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`} alt={u.name} className="w-8 h-8 rounded-full mr-2" />
+                  <img
+                    src={u.avatar ? `${u.avatar.startsWith('http') ? '' : 'http://localhost:5000'}${u.avatar}?t=${u.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`}
+                    alt={u.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
                   <span>{u.name} <span className="text-gray-400">({u.username})</span></span>
                 </li>
               ))}
@@ -186,29 +202,26 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   <div className="flex-1 min-h-0 overflow-y-auto bg-black">
     {filteredChats.length > 0 ? (
       filteredChats.map(chat => {
-        const other = chat.participants.find(p => p._id !== user._id);
-        const unreadCount = getUnreadCount(chat._id);
+        const latestChat = getLatestChat(chat._id) || chat;
+        const other = latestChat.participants.find(p => p._id !== user._id);
+        const unreadCount = getUnreadCount(latestChat._id);
         return (
-          <div key={chat._id} onClick={() => {
+          <div key={latestChat._id} onClick={() => {
             setSearchTerm('');
-            onSelectChat(chat);
-            markChatAsRead(chat._id);
+            onSelectChat(latestChat);
+            markChatAsRead(latestChat._id);
           }}>
             <ChatItem
               chat={{
-                ...chat,
+                ...latestChat,
                 name: other?.name || other?.username,
                 avatar: other?.avatar,
+                avatarUpdatedAt: other?.avatarUpdatedAt,
                 isOnline: other?.isOnline,
                 lastSeen: other?.lastSeen,
                 unreadCount,
               }}
-              isSelected={chat._id === selectedChatId}
-              onClick={() => {
-                setSearchTerm('');
-                onSelectChat(chat);
-                markChatAsRead(chat._id);
-              }}
+              isSelected={latestChat._id === selectedChatId}
             />
           </div>
         );

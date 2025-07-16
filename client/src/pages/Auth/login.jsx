@@ -217,14 +217,11 @@ const Login = () => {
       </motion.div>
 
       {/* Centered Login Form */}
-      <div className="relative z-10 bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-        <h2 className="text-3xl font-extrabold text-center text-black mb-4">
+      <div className="relative z-10 bg-gray-900 bg-opacity-90 p-8 rounded-lg shadow-lg w-96 flex flex-col gap-4">
+        <h2 className="text-3xl font-extrabold text-center text-white mb-4">
           Login to Teamer
         </h2>
-        {error && (
-          <p className="text-red-500 text-center mb-4">{error}</p>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             name="email"
             type="email"
@@ -241,18 +238,31 @@ const Login = () => {
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
-          <button
-            type="submit"
-            className="w-full py-3 bg-black text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 transition duration-300"
-          >
-            Login
-          </button>
+          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold">Login</button>
+          {error && <div className="text-red-400 text-xs mt-2">{error}</div>}
         </form>
-        <p className="text-sm text-center text-black mt-6">
-          Don’t have an account?{" "}
+        
+        {/* Divider */}
+        <div className="flex items-center my-2">
+          <div className="flex-1 border-t border-gray-600"></div>
+          <span className="px-3 text-gray-400 text-sm">or</span>
+          <div className="flex-1 border-t border-gray-600"></div>
+        </div>
+        
+        {/* Google Login Button */}
+        <button
+          onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+          className="bg-white text-gray-800 py-2 px-4 rounded-lg shadow flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
+        >
+          <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" className="w-5 h-5" />
+          Sign in with Google
+        </button>
+        
+        <p className="text-sm text-center text-gray-400 mt-4">
+          Don't have an account?{" "}
           <span
             onClick={() => navigate("/signup")}
-            className="text-black hover:underline cursor-pointer"
+            className="text-blue-400 hover:underline cursor-pointer"
           >
             Sign up
           </span>

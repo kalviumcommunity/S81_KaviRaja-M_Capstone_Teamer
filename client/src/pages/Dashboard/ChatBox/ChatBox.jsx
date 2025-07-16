@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Paperclip, Send, MoreVertical, Phone, Video, Smile } from 'lucide-react';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
@@ -15,28 +16,143 @@ import ScheduleCall from './ScheduleCall';
 import AnalyticsGraph from './AnalyticsGraph';
 import VideoCall from '../../../pages/VideoCall/VideoCall';
 import VoiceCallModal from './VoiceCallModal';
-import { uploadChatFile, fetchTasks, createTask, updateTask } from '../../../utils/fetchApi';
+import CreateMeeting from './CreateMeeting';
+import MeetingCard from './MeetingCard';
+import { uploadChatFile, fetchTasks, createTask, updateTask, fetchPolls, fetchSchedules, createSchedule } from '../../../utils/fetchApi';
+import axios from 'axios';
+import api from '../../../utils/fetchApi';
 
 const ChatBox = ({ chat }) => {
   const { user } = useAuth();
-  const { getMessages, sendMessage, loadMessages, socket } = useChat();
-  const [input, setInput] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
+  const { getMessages, sendMessage, loadMessages, socket, chats } = useChat();
+  // --- Video Call Modal State ---
+  const [videoCallModal, setVideoCallModal] = useState({ open: false, caller: null, isIncoming: false, isRinging: false });
+  const [videoCallAccepted, setVideoCallAccepted] = useState(false);
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [currentCallId, setCurrentCallId] = useState(null); // Unique call ID for 1:1 video call
+  const [pendingShowVideoCall, setPendingShowVideoCall] = useState(false); // Ensures UI only opens after callId is set
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showVoiceCall, setShowVoiceCall] = useState(false); // <-- Added missing state
+  const [polls, setPolls] = useState([]);
+  const [tasks, setTasks] = useState([]); // <-- Added missing tasks state
+  const [schedules, setSchedules] = useState([]); // <-- Added missing schedules state
+  const [meetings, setMeetings] = useState([]);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showScheduleCall, setShowScheduleCall] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const [showVoiceCall, setShowVoiceCall] = useState(false);
-  const [showVideoCall, setShowVideoCall] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [polls, setPolls] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Removed selectedUser state, not needed for my profile modal
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [input, setInput] = useState(''); // <-- Added missing input state
+  const [showMenu, setShowMenu] = useState(false); // <-- Added missing showMenu state
+  const [showCreateMeeting, setShowCreateMeeting] = useState(false);
+  const navigate = useNavigate();
+  // --- Meeting Join By ID Modal State ---
+  const [showJoinById, setShowJoinById] = useState(false);
+  function handleJoinMeetingById(meetId) {
+    setShowJoinById(false);
+    window.location.href = `/video-call/${meetId}`;
+  }
+
+  // --- Video Call Socket Logic ---
+  useEffect(() => {
+    if (!socket || !chat || !chat._id || chat.isGroupChat) return;
+    let callTimeout = null;
+    // Listen for incoming video call request
+    const handleVideoCallRequest = ({ fromUserId, fromUserName, callId }) => {
+      if (user._id !== fromUserId) {
+        setCurrentCallId(callId);
+        setVideoCallModal({ open: true, caller: { _id: fromUserId, name: fromUserName }, isIncoming: true, isRinging: true });
+        // DO NOT call setShowVideoCall(true) here! Only after accept.
+      }
+    };
+    // Listen for video call response
+    const handleVideoCallResponse = ({ accepted, fromUserId, callId }) => {
+      clearTimeout(callTimeout);
+      if (accepted) {
+        setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+        setCurrentCallId(callId);
+        setPendingShowVideoCall(true); // Wait for callId to be set before opening UI
+      } else {
+        setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+        setCurrentCallId(null);
+        alert('Call declined');
+      }
+    };
+    // Listen for call cancel
+    const handleVideoCallCancel = () => {
+      clearTimeout(callTimeout);
+      setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+      setCurrentCallId(null);
+    };
+    socket.on('video-call-request', handleVideoCallRequest);
+    socket.on('video-call-response', handleVideoCallResponse);
+    socket.on('video-call-cancel', handleVideoCallCancel);
+
+    // Timeout for unanswered calls (30s)
+    if (videoCallModal.open && !videoCallModal.isIncoming) {
+      callTimeout = setTimeout(() => {
+        setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+        setCurrentCallId(null);
+        alert('No answer');
+        // Optionally, emit cancel event
+        const latestChat = chats.find(c => c._id === chat._id) || chat;
+        const other = latestChat.participants.find(p => p._id !== user._id);
+        socket.emit('video-call-cancel', { toUserId: other._id, fromUserId: user._id });
+      }, 30000);
+    }
+    return () => {
+      clearTimeout(callTimeout);
+      socket.off('video-call-request', handleVideoCallRequest);
+      socket.off('video-call-response', handleVideoCallResponse);
+      socket.off('video-call-cancel', handleVideoCallCancel);
+    };
+  }, [socket, chat, user._id, videoCallModal.open]);
+
+  // Ensure showVideoCall is only set after currentCallId is set (prevents race condition)
+  useEffect(() => {
+    if (pendingShowVideoCall && currentCallId) {
+      setShowVideoCall(true);
+      setPendingShowVideoCall(false);
+    }
+  }, [pendingShowVideoCall, currentCallId]);
+
+  // --- Video Call Button Handler ---
+  const handleStartVideoCall = () => {
+    // Always use the latest chat object from context (with updated avatars)
+    const latestChat = chats.find(c => c._id === chat._id) || chat;
+    const other = latestChat.participants.find(p => p._id !== user._id);
+    // Generate a unique callId for this 1:1 call
+    const callId = [user._id, other._id, Date.now()].join('-');
+    setCurrentCallId(callId);
+    socket.emit('video-call-request', { toUserId: other._id, fromUserId: user._id, fromUserName: user.name, callId });
+    setVideoCallModal({ open: true, caller: other, isIncoming: false, isRinging: true });
+  };
+
+  // --- Accept/Decline Handlers ---
+  const handleAcceptVideoCall = () => {
+    setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+    setCurrentCallId(prev => {
+      setTimeout(() => setShowVideoCall(true), 0);
+      return prev;
+    });
+    socket.emit('video-call-response', { toUserId: videoCallModal.caller._id, fromUserId: user._id, accepted: true, callId: currentCallId });
+  };
+  const handleDeclineVideoCall = () => {
+    setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+    setCurrentCallId(null);
+    socket.emit('video-call-response', { toUserId: videoCallModal.caller._id, fromUserId: user._id, accepted: false, callId: currentCallId });
+  };
+  // If caller cancels before answer
+  const handleCancelVideoCall = () => {
+    setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
+    const other = chat.participants.find(p => p._id !== user._id);
+    socket.emit('video-call-cancel', { toUserId: other._id, fromUserId: user._id });
+  };
   const [voiceCallCallee, setVoiceCallCallee] = useState(null);
   const [isCaller, setIsCaller] = useState(false);
   const messagesEndRef = useRef(null);
@@ -66,24 +182,38 @@ const ChatBox = ({ chat }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
 
+  // Fix: fetchTasks and fetchPolls return array, not {tasks: []}
+  // Always trust backend for polls, tasks, schedules
   useEffect(() => {
     if (chat && chat._id) {
-      // Save last opened chatId for persistence
       localStorage.setItem('lastChatId', chat._id);
       const token = localStorage.getItem('token');
       loadMessages(chat._id, token);
-      // Fetch tasks from backend for this chat
       fetchTasks(chat._id, token)
-        .then((data) => setTasks(data.tasks || []))
-        .catch((err) => {
-          setTasks([]);
-        });
+        .then((data) => setTasks(Array.isArray(data) ? data : (data.tasks || [])))
+        .catch((err) => setTasks([]));
+      fetchPolls(chat._id, token)
+        .then((data) => {
+          const arr = Array.isArray(data) ? data : (data.polls || []);
+          console.log('[DEBUG] Polls fetched from backend:', arr);
+          setPolls(arr.map(p => ({
+            ...p,
+            id: p.id || p._id,
+            chatId: typeof p.chatId === 'object' && p.chatId !== null && p.chatId.toString ? p.chatId.toString() : String(p.chatId)
+          })));
+        })
+        .catch((err) => { console.error('[DEBUG] Poll fetch error:', err); setPolls([]); });
+      fetchSchedules(chat._id, token)
+        .then((data) => setSchedules(Array.isArray(data) ? data : (data.schedules || [])))
+        .catch((err) => setSchedules([]));
+      fetchMeetings();
     }
     // eslint-disable-next-line
   }, [chat && chat._id]);
 
   const handleStartVoiceCall = () => {
-    const other = chat.participants.find(p => p._id !== user._id);
+    const latestChat = chats.find(c => c._id === chat._id) || chat;
+    const other = latestChat.participants.find(p => p._id !== user._id);
     setVoiceCallCallee(other);
     setIsCaller(true);
     isCallerRef.current = true;
@@ -115,35 +245,31 @@ const ChatBox = ({ chat }) => {
   }, [showVoiceCall]);
 
   // Real-time poll, task, and schedule events
+  // After any poll socket event, always re-fetch from backend for this chat
   useEffect(() => {
-    if (!socket) return;
-    const handleNewPoll = (payload) => {
-      setPolls((prev) => [...prev, payload]);
+    if (!socket || !chat || !chat._id) return;
+    const token = localStorage.getItem('token');
+    const refetchPolls = () => {
+      fetchPolls(chat._id, token)
+        .then((data) => {
+          const arr = Array.isArray(data) ? data : (data.polls || []);
+          console.log('[DEBUG] Polls fetched from backend:', arr);
+          setPolls(arr.map(p => ({
+            ...p,
+            id: p.id || p._id,
+            chatId: p.chatId && p.chatId.toString ? p.chatId.toString() : String(p.chatId)
+          })));
+        })
+        .catch((err) => { console.error('[DEBUG] Poll fetch error:', err); setPolls([]); });
     };
-    const handleNewTask = (payload) => {
-      setTasks((prev) => [...prev, payload]);
-    };
-    const handleNewSchedule = (payload) => {
-      setShowAnalytics(false); // Optionally close analytics if open
-      setSchedules((prev) => [...prev, payload]);
-    };
-    socket.on('new_poll', handleNewPoll);
-    socket.on('new_task', handleNewTask);
-    socket.on('new_schedule', handleNewSchedule);
+    socket.on('polls_updated', refetchPolls);
     return () => {
-      socket.off('new_poll', handleNewPoll);
-      socket.off('new_task', handleNewTask);
-      socket.off('new_schedule', handleNewSchedule);
+      socket.off('polls_updated', refetchPolls);
     };
-  }, [socket]);
+  }, [socket, chat && chat._id]);
 
   // Emit poll, task, and schedule events
-  const emitPoll = (poll) => {
-    if (socket && chat && chat._id) {
-      socket.emit('new_poll', { ...poll, chatId: chat._id });
-    }
-    // Do not setPolls here; let the socket event handle it for everyone (including sender)
-  };
+  // No emitPoll: poll creation is via REST API only; socket is for notification only
   // Create task via API, then emit socket event for real-time
   const emitTask = async (task) => {
     if (!chat || !chat._id) return;
@@ -211,13 +337,95 @@ const ChatBox = ({ chat }) => {
     };
   }, [socket]);
 
+  // Fix: pass correct user id for poll voting
+  const handleVotePoll = async (pollId, optionIdx) => {
+    const token = localStorage.getItem('token');
+    // Defensive: user._id or user.id
+    const userId = user?._id || user?.id;
+    const userName = user?.name || user?.username || userId;
+    if (!userId) return;
+    try {
+      await axios.post('/api/polls/vote', {
+        pollId,
+        optionIdx,
+        userId,
+        userName
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      // No need to update local state; socket event will update for all
+    } catch (err) {
+      // Optionally show error
+    }
+  };
+
+  // Fetch meetings for this chat
+  const fetchMeetings = async () => {
+    if (!chat?._id) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await api.get(`/api/meetings/chat/${chat._id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log('[DEBUG] Meetings fetched:', res.data);
+      setMeetings(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('[DEBUG] Failed to fetch meetings:', err);
+      setMeetings([]);
+    }
+  };
+
+  // Always fetch meetings when chat changes
+  useEffect(() => {
+    fetchMeetings();
+    // eslint-disable-next-line
+  }, [chat && chat._id]);
+
+  // Real-time meeting_created event
+  useEffect(() => {
+    if (!socket || !chat?._id) return;
+    const handler = (meeting) => {
+      if (meeting.chatId === chat._id || meeting.chatId?._id === chat._id) {
+        console.log('[DEBUG] meeting_created event received:', meeting);
+        fetchMeetings();
+      }
+    };
+    socket.on('meeting_created', handler);
+    return () => socket.off('meeting_created', handler);
+  }, [socket, chat && chat._id]);
+
+  // Join Meet handler
+  const handleJoinMeeting = (meeting) => {
+    // Redirect to video call page with meetingId
+    window.location.href = `/video-call/${meeting.meetId}`;
+  };
+
   if (!chat) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         Select a chat to start messaging
-      </div>
-    );
-  }
+
+      {/* My Profile Floating Button */}
+      <button
+        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg border-4 border-blue-600 bg-gray-900 flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
+        title="View My Profile"
+        disabled={!user}
+        onClick={() => {
+          if (!user) return;
+          setShowUserProfile(true);
+        }}
+        style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
+      >
+        <img
+          src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`}
+          alt={user?.name || 'User'}
+          className="w-12 h-12 rounded-full object-cover"
+          onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`; }}
+        />
+      </button>
+    </div>
+  );
+};
 
   const isGroup = chat.isGroupChat;
   // Robust admin check: groupAdmin can be id or user object
@@ -225,7 +433,10 @@ const ChatBox = ({ chat }) => {
   const isAdmin = adminId === user?._id;
 
   // Debug: log admin check
+if (isGroup) {
+  // Only log admin info for group chats
   console.log('adminId:', adminId, 'user._id:', user?._id, 'isAdmin:', isAdmin);
+}
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -272,27 +483,83 @@ const ChatBox = ({ chat }) => {
   const handleCloseUserProfile = () => setShowUserProfile(false);
   const handleOpenCreatePoll = () => setShowCreatePoll(true);
   const handleCloseCreatePoll = () => setShowCreatePoll(false);
-  const handleCreatePoll = (poll) => {
-    emitPoll(poll);
+  const handleCreatePoll = async (poll) => {
+    const token = localStorage.getItem('token');
+    try {
+      // Always use backend API for creation
+      const res = await fetch('/api/polls', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...poll, chatId: chat._id, creator: user, members: chat.participants.map(p => ({ id: p._id, name: p.name })) })
+      });
+      if (!res.ok) throw new Error('Poll creation failed');
+      const createdPoll = await res.json();
+      console.log('[DEBUG] Poll created, backend response:', createdPoll);
+      // Instead of optimistic update, always re-fetch from backend for true source of state
+      await fetchPolls(chat._id, token)
+        .then((data) => {
+          const arr = Array.isArray(data) ? data : (data.polls || []);
+          console.log('[DEBUG] Polls after creation:', arr);
+          setPolls(arr.map(p => ({
+            ...p,
+            id: p.id || p._id,
+            chatId: typeof p.chatId === 'object' && p.chatId !== null && p.chatId.toString ? p.chatId.toString() : String(p.chatId)
+          })));
+        })
+        .catch((err) => { console.error('[DEBUG] Poll fetch error after create:', err); setPolls([]); });
+    } catch (err) {
+      console.error('[DEBUG] Poll creation error:', err);
+    }
     handleCloseCreatePoll();
   };
   const handleOpenTaskModal = () => setShowTaskModal(true);
   const handleCloseTaskModal = () => setShowTaskModal(false);
-  const handleAssignTask = (desc, member) => {
-    emitTask({ description: desc, assignedTo: member, createdBy: user });
+  const handleAssignTask = async (desc, member) => {
+    const token = localStorage.getItem('token');
+    try {
+      await createTask({ description: desc, assignedTo: member, createdBy: user, chatId: chat._id }, token);
+      // No need to update local state; socket event will update for all
+    } catch (err) {
+      // Optionally show error
+    }
     handleCloseTaskModal();
   };
   const handleOpenScheduleCall = () => setShowScheduleCall(true);
   const handleCloseScheduleCall = () => setShowScheduleCall(false);
-  const handleSchedule = (schedule) => {
-    emitSchedule(schedule);
+  const handleSchedule = async (schedule) => {
+    const token = localStorage.getItem('token');
+    try {
+      await createSchedule({ ...schedule, chatId: chat._id, createdBy: user }, token);
+      // No need to update local state; socket event will update for all
+    } catch (err) {
+      // Optionally show error
+    }
     handleCloseScheduleCall();
   };
 
   // Merge messages, polls, and tasks into a single array and sort by timestamp/id
   const combinedItems = [
     ...getMessages(chat?._id).map(m => ({ ...m, _type: 'message', time: new Date(m.timestamp || m.createdAt || Date.now()).getTime() })),
-    ...polls.map(p => ({ ...p, _type: 'poll', time: p.createdAt ? new Date(p.createdAt).getTime() : p.id })),
+    ...meetings
+      .filter(m => String(m.chatId) === String(chat?._id))
+      .map(m => ({
+        ...m,
+        _type: 'meeting',
+        time: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+      })),
+    ...polls
+      .filter(p => String(p.chatId) === String(chat?._id))
+      .map(p => ({
+        ...p,
+        _type: 'poll',
+        time: p.createdAt ? new Date(p.createdAt).getTime() : (p.id || p._id || Date.now()),
+        options: Array.isArray(p.options) ? p.options : [],
+        members: Array.isArray(p.members) ? p.members : (chat.participants ? chat.participants.map(u => ({ id: u._id, name: u.name })) : []),
+        creator: p.creator || { _id: user._id, name: user.name, username: user.username }
+      })),
     ...tasks.map(t => ({ ...t, _type: 'task', time: t.createdAt ? new Date(t.createdAt).getTime() : t.id })),
     ...schedules.map(s => ({ ...s, _type: 'schedule', time: s.scheduledTime ? new Date(s.scheduledTime).getTime() : s.id })),
   ].sort((a, b) => a.time - b.time);
@@ -315,7 +582,7 @@ const ChatBox = ({ chat }) => {
               <img
                 src={(() => {
                   const other = chat.participants.find(p => p._id !== user._id);
-                  return other?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
+                  return other?.avatar ? `${other.avatar.startsWith('http') ? '' : 'http://localhost:5000'}${other.avatar}?t=${other.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
                 })()}
                 alt={(() => {
                   const other = chat.participants.find(p => p._id !== user._id);
@@ -362,9 +629,30 @@ const ChatBox = ({ chat }) => {
           <button onClick={handleStartVoiceCall} className="p-2 rounded hover:bg-gray-800 text-green-400" title="Voice Call">
             <Phone size={20} />
           </button>
-          <button onClick={() => setShowVideoCall(true)} className="p-2 rounded hover:bg-gray-800 text-blue-400" title="Video Call">
+          <button onClick={handleStartVideoCall} className="p-2 rounded hover:bg-gray-800 text-blue-400" title="Video Call">
             <Video size={20} />
           </button>
+      {/* Video Call Modal */}
+      {videoCallModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
+            {videoCallModal.isIncoming ? (
+              <>
+                <div className="text-lg font-semibold mb-4">Incoming video call from {videoCallModal.caller?.name || 'Unknown'}</div>
+                <div className="flex gap-4">
+                  <button onClick={handleAcceptVideoCall} className="px-6 py-2 bg-green-500 text-white rounded-lg font-bold">Accept</button>
+                  <button onClick={handleDeclineVideoCall} className="px-6 py-2 bg-red-500 text-white rounded-lg font-bold">Decline</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-semibold mb-4">Calling {videoCallModal.caller?.name || 'User'}...</div>
+                <button onClick={handleCancelVideoCall} className="px-6 py-2 bg-gray-500 text-white rounded-lg font-bold mt-2">Cancel</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
           <button onClick={() => setShowMenu((v) => !v)} className="p-2 rounded hover:bg-gray-800 text-gray-400" title="Menu">
             <MoreVertical size={20} />
           </button>
@@ -373,7 +661,7 @@ const ChatBox = ({ chat }) => {
               isGroup={true} // Always true so menu shows for all chats
               isAdmin={true} // Always true so all options show
               onCreatePoll={() => { handleOpenCreatePoll(); setShowMenu(false); }}
-              onScheduleCall={() => { handleOpenScheduleCall(); setShowMenu(false); }}
+              onScheduleCall={() => { setShowCreateMeeting(true); setShowMenu(false); }}
               onLeaveGroup={() => {}}
               onAssignTask={() => { handleOpenTaskModal(); setShowMenu(false); }}
               onClose={() => setShowMenu(false)}
@@ -382,11 +670,62 @@ const ChatBox = ({ chat }) => {
         </div>
       </div>
 
+      {/* Meeting creation modal */}
+      {showCreateMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <CreateMeeting
+              chat={chat}
+              currentUser={user}
+              onMeetingCreated={() => { setShowCreateMeeting(false); fetchMeetings(); }}
+              onClose={() => setShowCreateMeeting(false)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 bg-gray-900">
+
+        {/* Meetings are now rendered in combinedItems below */}
         {combinedItems.map((item, idx) => {
+          if (item._type === 'meeting') {
+            const creatorId = item.creator?._id || item.creator?.id || item.creator;
+            const isMine = String(creatorId) === String(user._id);
+            return (
+              <MeetingCard
+                key={item._id || idx}
+                meeting={item}
+                currentUser={user}
+                onJoin={handleMeetingJoin}
+                alignRight={isMine}
+              />
+            );
+          }
+  // Meeting join handler for both invited and not-invited users
+  function handleMeetingJoin(meeting) {
+    const userId = String(user?._id || user?.id);
+    const isInvited = meeting.participants.some(
+      p => String(typeof p === 'string' ? p : p._id) === userId
+    );
+    if (isInvited) {
+      navigate(`/video-call/${meeting.meetId}`);
+    } else {
+      setShowJoinById(true);
+    }
+  }
+      {/* Join Meeting by ID Popup */}
+      {showJoinById && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <button onClick={() => setShowJoinById(false)} className="absolute top-2 right-2 text-gray-400 hover:text-black">✕</button>
+            <h2 className="text-lg font-semibold mb-2 text-gray-900">Enter Meeting ID to Join</h2>
+            <JoinMeetingById onJoin={handleJoinMeetingById} />
+          </div>
+        </div>
+      )}
           if (item._type === 'message') {
-            // Robust senderId extraction for all cases
+            // ...existing code for rendering messages...
             let senderId = '';
             if (item.sender && typeof item.sender === 'object') {
               senderId = item.sender._id || item.sender.id || '';
@@ -447,7 +786,52 @@ const ChatBox = ({ chat }) => {
             );
           }
           if (item._type === 'poll') {
-            return <Poll key={item.id || item._id || idx} poll={item} onVote={() => {}} currentUser={user} />;
+            // WhatsApp-like poll bubble styling
+            // Use sender logic like messages: if poll.creator matches user._id, it's mine
+            let isMine = false;
+            // TRIPLE CHECK: Always treat poll as mine if creator matches user._id (string or object)
+            // Fix: Use a unique variable name for poll alignment
+            // Use a unique variable name for poll alignment to avoid redeclaration
+            let pollAlignMine = false;
+            if (item.creator) {
+              if (typeof item.creator === 'string' || typeof item.creator === 'number') {
+                pollAlignMine = String(item.creator) === String(user._id);
+              } else if (item.creator._id) {
+                pollAlignMine = String(item.creator._id) === String(user._id);
+              } else if (item.creator.id) {
+                pollAlignMine = String(item.creator.id) === String(user._id);
+              }
+            }
+            // Show poll on right if sent by me, left if sent by others
+            let pollIsMine = false;
+            if (item.creator) {
+              if (typeof item.creator === 'string' || typeof item.creator === 'number') {
+                pollIsMine = String(item.creator) === String(user._id);
+              } else if (item.creator._id) {
+                pollIsMine = String(item.creator._id) === String(user._id);
+              } else if (item.creator.id) {
+                pollIsMine = String(item.creator.id) === String(user._id);
+              }
+            }
+            return (
+              <div key={item.id || item._id || idx} className={`flex ${pollAlignMine ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className="max-w-[70%] rounded-lg px-4 py-2 mb-1 bg-gray-800 text-gray-200 text-center"
+                >
+                  {/* Always show creator name */}
+                  {item.creator && (item.creator.name || item.creator.username) && (
+                    <div className="text-xs text-blue-300 font-semibold mb-1">
+                      {item.creator.name || item.creator.username}
+                    </div>
+                  )}
+                  <Poll
+                    poll={item}
+                    onVote={handleVotePoll}
+                    currentUser={user}
+                  />
+                </div>
+              </div>
+            );
           }
           if (item._type === 'task') {
             return (
@@ -522,21 +906,21 @@ const ChatBox = ({ chat }) => {
       {showGroupInfo && (
         <GroupInfo 
           group={{
-            ...chat,
-            members: chat.participants?.map(p => ({
+            ...((chats.find(c => c._id === chat._id)) || chat),
+            members: ((chats.find(c => c._id === chat._id) || chat).participants || []).map(p => ({
               id: p._id || p.id || p.name,
               name: p.name || p.username || 'User',
               avatar: p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || p.username || 'User')}&background=random`,
               role: (typeof chat.groupAdmin === 'object' ? chat.groupAdmin._id : chat.groupAdmin) === (p._id || p.id) ? 'admin' : 'member',
               messageCount: p.messageCount || 0
-            })) || []
+            }))
           }}
           onClose={handleCloseGroupInfo}
           onMemberClick={handleOpenUserProfile}
         />
       )}
-      {showUserProfile && selectedUser && (
-        <UserProfile user={selectedUser} onClose={handleCloseUserProfile} onPaymentClick={() => {}} />
+      {showUserProfile && (
+        <UserProfile user={selectedUser} onClose={() => setShowUserProfile(false)} onPaymentClick={() => {}} />
       )}
       {showCreatePoll && (
         <CreatePoll onClose={handleCloseCreatePoll} onCreatePoll={handleCreatePoll} />
@@ -573,14 +957,30 @@ const ChatBox = ({ chat }) => {
           isCaller={isCaller}
         />
       )}
-      {showVideoCall && (
+      {showVideoCall && currentCallId && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-80 z-50">
           <div className="bg-gray-900 rounded-lg w-full h-full max-w-5xl max-h-[90vh] relative overflow-hidden flex flex-col">
-            <button onClick={() => setShowVideoCall(false)} className="absolute top-2 right-2 text-gray-400 hover:text-white z-10">✕</button>
-            <VideoCall />
+            <button onClick={() => { setShowVideoCall(false); setCurrentCallId(null); }} className="absolute top-2 right-2 text-gray-400 hover:text-white z-10">✕</button>
+            {/* Always pass currentCallId as callId prop for 1:1 calls */}
+            <VideoCall callId={currentCallId} />
           </div>
         </div>
       )}
+      {/* My Profile Floating Button */}
+      <button
+        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg border-4 border-blue-600 bg-gray-900 flex items-center justify-center hover:scale-105 transition-transform"
+        title="View My Profile"
+        onClick={() => { setSelectedUser(user); setShowUserProfile(true); }}
+        style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
+      >
+        <img
+          key={user.avatar}
+          src={user.avatar && !user.avatar.startsWith('http') ? `http://localhost:5000${user.avatar}?t=${user.avatarUpdatedAt || Date.now()}` : (user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`)}
+          alt={user.name}
+          className="w-12 h-12 rounded-full object-cover"
+          onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`; }}
+        />
+      </button>
     </div>
   );
 };

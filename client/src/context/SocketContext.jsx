@@ -15,6 +15,27 @@ export const SocketProvider = ({ children }) => {
         query: { userId: user._id }
       });
 
+      // Join userId room for targeted events (meetings, etc)
+      newSocket.on('connect', () => {
+        if (user._id) {
+          console.log('[DEBUG] Emitting user_join with userId:', user._id);
+          newSocket.emit('user_join', user._id);
+        } else {
+          console.warn('[DEBUG] user._id is missing on socket connect:', user);
+        }
+      });
+
+      // Add error and disconnect logging
+      newSocket.on('connect_error', (err) => {
+        console.error('[SocketContext] connect_error:', err);
+      });
+      newSocket.on('error', (err) => {
+        console.error('[SocketContext] error:', err);
+      });
+      newSocket.on('disconnect', (reason) => {
+        console.warn('[SocketContext] disconnect:', reason);
+      });
+
       setSocket(newSocket);
 
       return () => {

@@ -1,25 +1,19 @@
 import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/fetchApi';
 
 export default function useSessionCheck() {
-  const { user, setUser } = useAuth();
+  const { setUser } = useAuth();
 
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/auth/profile', { credentials: 'include' });
-        if (!res.ok) {
-          setUser(null);
-          return;
-        }
-        const data = await res.json();
-        setUser(data);
+        const res = await api.get('/api/auth/profile');
+        setUser(res.data);
       } catch {
         setUser(null);
       }
     };
     checkSession();
-    // Only run on mount
-    // eslint-disable-next-line
   }, []);
 }

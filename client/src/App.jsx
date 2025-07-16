@@ -10,6 +10,7 @@ import ChatTester from "./components/ChatTester";
 import { SocketProvider } from "./context/SocketContext";
 import { ChatProvider } from "./context/ChatContext";
 import useSessionCheck from "./hooks/useSessionCheck";
+import Callback from './pages/Auth/Callback';
 
 const ProtectedDashboard = () => {
   useSessionCheck();
@@ -62,7 +63,9 @@ const App = () => {
       <Route path="/signup" element={<Signup />} />
       <Route path="/dashboard" element={<ProtectedDashboard />} />
       <Route path="/video-call/:callId" element={<ProtectedVideoCall />} />
+      <Route path="/video-call/:meetId" element={<ProtectedVideoCall />} />
       <Route path="/chat-test" element={<ProtectedChatTest />} />
+      <Route path="/auth/callback" element={<Callback />} />
     </Routes>
   );
 };

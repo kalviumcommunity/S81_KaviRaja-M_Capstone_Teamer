@@ -3,6 +3,7 @@ import { Mic, MicOff, Video, VideoOff } from 'lucide-react';
 
 const VideoGrid = ({ participants, localUser }) => {
   const videoRefs = useRef({});
+  const currentUserId = localUser?.id;
 
   const getGridColumns = () => {
     const count = participants.length;
@@ -21,8 +22,7 @@ const VideoGrid = ({ participants, localUser }) => {
   }, [participants]);
 
   const renderVideoTile = (participant) => {
-    const isLocal = participant.id === 'local';
-
+    const isLocal = participant.id === currentUserId;
     return (
       <div
         key={participant.id}
@@ -34,7 +34,7 @@ const VideoGrid = ({ participants, localUser }) => {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
               <span className="text-2xl text-white">
-                {participant.name[0].toUpperCase()}
+                {participant.name[0]?.toUpperCase()}
               </span>
             </div>
           </div>
@@ -52,7 +52,7 @@ const VideoGrid = ({ participants, localUser }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-white text-sm">
-                {participant.name} {isLocal && '(You)'}
+                {participant.name}
               </span>
               {participant.isHost && (
                 <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">

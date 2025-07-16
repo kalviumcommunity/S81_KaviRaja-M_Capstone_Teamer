@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../utils/fetchApi';
 
 export const AuthContext = createContext(null);
 
@@ -7,20 +8,29 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false); // No global loading
   const [error, setError] = useState(null);
 
+  // On mount, fetch the latest user profile (if logged in)
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get('/api/auth/profile');
+        setUser(res.data);
+      } catch (e) {
+        setUser(null);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   const login = async (email, password) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password })
+      const res = await api.post('/api/auth/login', {
+        email, password
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
-      setUser(data.user);
-      return data.user;
+      if (!res.data || !res.data.user) throw new Error(res.data.message || 'Login failed');
+      setUser(res.data.user);
+      return res.data.user;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -37,15 +47,11 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, email, password, username })
+      const res = await api.post('/api/auth/register', {
+        name, email, password, username
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Registration failed');
-      return data;
+      if (!res.data) throw new Error(res.data.message || 'Registration failed');
+      return res.data;
     } catch (err) {
       setError(err.message);
       throw err;

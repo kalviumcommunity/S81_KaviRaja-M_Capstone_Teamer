@@ -9,6 +9,7 @@ const VoiceCallModal = ({ chat, onClose, callee, isCaller }) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [localStream, setLocalStream] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [timerActive, setTimerActive] = useState(false);
   const pcRef = useRef(null);
 
   useEffect(() => {
@@ -39,8 +40,7 @@ const VoiceCallModal = ({ chat, onClose, callee, isCaller }) => {
     });
 
     // --- Socket events ---
-    socket.on('incoming_call', async ({ fromUserId, offer }) => {
-      // If peer connection is closed, create a new one
+    const handleIncomingCall = async ({ fromUserId, offer }) => {
       if (!pcRef.current || pcRef.current.signalingState === 'closed') {
         const newPc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         pcRef.current = newPc;
@@ -62,37 +62,45 @@ const VoiceCallModal = ({ chat, onClose, callee, isCaller }) => {
       setCallState('ringing');
       try {
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(offer));
-        // Do NOT auto-answer or emit call_connected here!
-      } catch (err) {
-        // Ignore if state is invalid
-      }
-    });
-    socket.on('call_answered', async ({ answer, fromUserId }) => {
+      } catch (err) {}
+    };
+    const handleCallAnswered = async ({ answer, fromUserId }) => {
       if (pcRef.current && pcRef.current.signalingState !== 'closed') {
         try {
           await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-          // Notify both sides that the call is connected
           socket.emit('call_connected', { toUserId: fromUserId });
         } catch (err) {}
       }
-    });
-
-    socket.on('call_connected', () => {
+    };
+    const handleCallConnected = () => {
       setCallState('in-call');
-    });
-
-    socket.on('ice_candidate', async ({ candidate }) => {
+      setTimerActive(true);
+    };
+    const handleIceCandidate = async ({ candidate }) => {
       if (pcRef.current && pcRef.current.signalingState !== 'closed') {
         try {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch {}
+        } catch (err) {}
       }
-    });
-    socket.on('call_ended', () => {
+    };
+    const handleCallEnded = () => {
       setCallState('ended');
+      if (onClose) onClose();
       cleanup();
-    });
-    return cleanup;
+    };
+    socket.on('incoming_call', handleIncomingCall);
+    socket.on('call_answered', handleCallAnswered);
+    socket.on('call_connected', handleCallConnected);
+    socket.on('ice_candidate', handleIceCandidate);
+    socket.on('call_ended', handleCallEnded);
+    return () => {
+      socket.off('incoming_call', handleIncomingCall);
+      socket.off('call_answered', handleCallAnswered);
+      socket.off('call_connected', handleCallConnected);
+      socket.off('ice_candidate', handleIceCandidate);
+      socket.off('call_ended', handleCallEnded);
+      cleanup();
+    };
     function cleanup() {
       if (pcRef.current) {
         try {
@@ -121,34 +129,25 @@ const VoiceCallModal = ({ chat, onClose, callee, isCaller }) => {
 
   useEffect(() => {
     let timer;
-    if (callState === 'in-call') {
+    if (timerActive && callState === 'in-call') {
       timer = setInterval(() => setCallDuration((d) => d + 1), 1000);
     } else if (callState === 'ended') {
       setCallDuration(0);
+      setTimerActive(false);
     }
     return () => clearInterval(timer);
-  }, [callState]);
-
-  // Ensure timer only starts after both sides are in-call
-  useEffect(() => {
-    if (callState === 'in-call' && callDuration === 0) {
-      setCallDuration(1); // Start at 1 second when call is accepted
-    }
-  }, [callState]);
+  }, [timerActive, callState]);
 
   // Accept button for callee
   const handleAccept = async () => {
-    // Only proceed if peer connection is valid
     if (pcRef.current && socket && callee && !isCaller && pcRef.current.signalingState !== 'closed') {
       try {
         const answer = await pcRef.current.createAnswer();
         await pcRef.current.setLocalDescription(answer);
         socket.emit('answer_call', { toUserId: callee._id, answer, fromUserId: user._id });
-        // Only now, after user accepts, notify both sides that the call is connected
         socket.emit('call_connected', { toUserId: callee._id });
-      } catch (err) {
-        // Ignore if state is invalid
-      }
+        // Do NOT setCallState('in-call') or setTimerActive(true) here; wait for call_connected event
+      } catch (err) {}
     }
   };
   const handleEnd = () => {

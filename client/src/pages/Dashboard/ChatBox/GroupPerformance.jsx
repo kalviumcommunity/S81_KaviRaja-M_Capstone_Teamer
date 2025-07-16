@@ -1,19 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ResponsiveBar } from '@nivo/bar';
 import { X } from 'lucide-react';
 
-const GroupPerformance = ({ members, onClose }) => {
-  // Transform data for the chart
-  const data = members.map(member => ({
-    member: member.name,
-    tasks: member.performance?.tasksCompleted || 0,
-    tasksColor: '#3B82F6',
-    messages: member.messageCount || 0,
-    messagesColor: '#10B981',
-    polls: member.performance?.pollsCreated || 0,
-    pollsColor: '#8B5CF6',
-    attendance: member.performance?.meetings?.attended || 0,
-    attendanceColor: '#F59E0B'
+const GroupPerformance = ({ onClose }) => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch('/api/users/performance')
+      .then(res => res.json())
+      .then(data => { setUsers(data); setLoading(false); })
+      .catch(() => setUsers([]));
+  }, []);
+  if (loading) return <div className="text-white p-8">Loading performance scores...</div>;
+  const data = users.map(user => ({
+    member: user.name,
+    score: user.performanceScore || 0,
+    scoreColor: '#3B82F6',
   }));
 
   return (
@@ -28,13 +30,13 @@ const GroupPerformance = ({ members, onClose }) => {
       <div className="h-[400px]">
         <ResponsiveBar
           data={data}
-          keys={['tasks', 'messages', 'polls', 'attendance']}
+          keys={['score']}
           indexBy="member"
           margin={{ top: 50, right: 130, bottom: 50, left: 60 }}
           padding={0.3}
           valueScale={{ type: 'linear' }}
           indexScale={{ type: 'band', round: true }}
-          colors={['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B']}
+          colors={['#3B82F6']}
           borderColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
           axisTop={null}
           axisRight={null}
@@ -51,7 +53,7 @@ const GroupPerformance = ({ members, onClose }) => {
             tickSize: 5,
             tickPadding: 5,
             tickRotation: 0,
-            legend: 'Count',
+            legend: 'Performance Score',
             legendPosition: 'middle',
             legendOffset: -40,
             textColor: '#9CA3AF'

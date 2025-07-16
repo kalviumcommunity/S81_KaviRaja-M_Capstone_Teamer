@@ -144,6 +144,20 @@ const Signup = () => {
             Register
           </button>
         </form>
+        {/* Divider */}
+        <div className="flex items-center my-4">
+          <div className="flex-1 border-t border-gray-600"></div>
+          <span className="px-3 text-gray-400 text-sm">or</span>
+          <div className="flex-1 border-t border-gray-600"></div>
+        </div>
+        {/* Google Signup Button */}
+        <button
+          onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+          className="w-full bg-white text-gray-800 py-2 px-4 rounded-lg shadow flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors mb-4"
+        >
+          <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" className="w-5 h-5" />
+          Sign up with Google
+        </button>
         <div className="mt-4 text-center">
           <p className="text-white">
             Already have an account?{" "}

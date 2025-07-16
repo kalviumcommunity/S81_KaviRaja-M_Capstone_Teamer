@@ -37,11 +37,7 @@ const Dashboard = () => {
   return (
     <CallProvider>
       <div className="flex flex-col h-screen w-screen bg-black overflow-hidden">
-        {showUnreadBanner && unreadChats.length > 0 && (
-          <div className="bg-yellow-500 text-black text-center py-2 font-semibold">
-            You have new messages from: {getUnreadSenderNames()}
-          </div>
-        )}
+        {/* Unread banner removed as per user request */}
         <div className="flex flex-1 min-h-0">
           <div className="w-[30vw] min-w-[320px] max-w-[420px] h-full border-r border-gray-800 bg-gray-900 flex flex-col">
             <ChatList

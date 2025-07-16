@@ -4,13 +4,62 @@ import { useSocket } from "./SocketContext";
 import { useAuth } from "./AuthContext";
 import axios from "axios";
 
+
+
+// Helper to update avatar in all messages
+function updateAvatarInMessages(messagesByChat, userId, avatar, avatarUpdatedAt) {
+  const updated = {};
+  for (const chatId in messagesByChat) {
+    updated[chatId] = (messagesByChat[chatId] || []).map(msg => {
+      if (msg.senderId === userId) {
+        return { ...msg, avatar, avatarUpdatedAt };
+      }
+      return msg;
+    });
+  }
+  return updated;
+}
+
+// Helper to update avatar in all chat participants
+function updateAvatarInChats(chats, userId, avatar, avatarUpdatedAt) {
+  return chats.map(chat => ({
+    ...chat,
+    participants: chat.participants.map(p =>
+      p._id === userId ? { ...p, avatar, avatarUpdatedAt } : p
+    )
+  }));
+}
+
 const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
   // Store all messages by chatId
   const [messagesByChat, setMessagesByChat] = useState({});
+  // Store all chats globally for real-time updates
+  const [chats, setChats] = useState([]);
   const socket = useSocket();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
+  // Listen for avatar updates from other users (WhatsApp-like)
+  useEffect(() => {
+    if (!socket) return;
+    const handleAvatarUpdate = async ({ userId, avatar, avatarUpdatedAt }) => {
+      // If it's me, update my context user
+      if (user && user._id === userId) {
+        setUser(prev => ({ ...prev, avatar, avatarUpdatedAt }));
+      }
+      // Update avatar in all chat participants
+      setChats(prev => updateAvatarInChats(prev, userId, avatar, avatarUpdatedAt));
+      // Update avatar in all chat messages
+      setMessagesByChat(prev => updateAvatarInMessages(prev, userId, avatar, avatarUpdatedAt));
+      // Force refetch all chats to ensure state is up to date everywhere
+      try {
+        const res = await axios.get('/api/chat/user-chats');
+        setChats(res.data);
+      } catch {}
+    };
+    socket.on('user_avatar_updated', handleAvatarUpdate);
+    return () => socket.off('user_avatar_updated', handleAvatarUpdate);
+  }, [socket, user, setUser]);
 
   // Track last read message index per chat in localStorage
   const getLastReadIndex = (chatId) => {
@@ -146,6 +195,8 @@ export const ChatProvider = ({ children }) => {
         messagesByChat, // for advanced use
         getUnreadCount,
         markChatAsRead,
+        chats,
+        setChats,
       }}
     >
       {children}

@@ -6,10 +6,15 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true }, 
+  username: { type: String, required: false, unique: false }, // Not required for Google users
   name: { type: String },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
+  password: { type: String, required: false }, // Not required for Google users
+  avatar: { type: String }, // URL to profile photo
+  avatarUpdatedAt: { type: Date },
+  paymentQr: { type: String }, // URL to payment QR code image
+  performanceScore: { type: Number, default: 0 },
+  googleId: { type: String, unique: true, sparse: true }, // For Google OAuth
 });
 
 userSchema.methods.generateToken = function () {

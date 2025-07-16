@@ -1,3 +1,26 @@
+import path from 'path';
+
+// Upload/Update user avatar
+export const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    // Save the file path as the avatar URL (relative to server root)
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    req.user.avatar = avatarUrl;
+    req.user.avatarUpdatedAt = new Date();
+    await req.user.save();
+
+    // Emit socket event to all clients (WhatsApp-like real-time update)
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('user_avatar_updated', { userId: req.user._id, avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
+    }
+
+    res.json({ avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
+  } catch (error) {
+    res.status(500).json({ message: 'Avatar upload failed', error });
+  }
+};
 // import bcrypt from "bcryptjs";
 // import { User } from "../models/userModel.js";
 // import jwt from "jsonwebtoken";
@@ -228,5 +251,38 @@ export const searchUsers = async (req, res) => {
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: "Error searching users", error: error.message });
+  }
+};
+
+// Get all users with name and performanceScore (for performance graph)
+export const getAllUsersPerformance = async (req, res) => {
+  try {
+    const users = await User.find({}, 'name performanceScore');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching users', error: error.message });
+  }
+};
+
+export const uploadPaymentQr = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const qrUrl = `/uploads/payment_qr/${req.file.filename}`;
+    req.user.paymentQr = qrUrl;
+    await req.user.save();
+    res.json({ paymentQr: qrUrl });
+  } catch (error) {
+    res.status(500).json({ message: 'QR upload failed', error });
+  }
+};
+
+export const getUserProfile = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const user = await User.findById(userId).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch user profile', error });
   }
 };
