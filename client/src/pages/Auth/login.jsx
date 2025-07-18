@@ -32,16 +32,8 @@ const Login = () => {
   };
 
   return (
-    <div className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-black">
-      {/* Background Image with Blur and Scaling Animation */}
-      <motion.div
-        initial={{ scale: 1 }}
-        animate={{ scale: 1.1 }}
-        transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
-        className="absolute inset-0 bg-cover bg-center filter blur-md brightness-50"
-        style={{ backgroundImage: "url('/teamwork.jpg')" }}
-      ></motion.div>
-
+    <div className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-black via-gray-900 to-gray-800">
+      {/* No background image */}
       {/* Overlay Gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/80 to-black/50"></div>
 
