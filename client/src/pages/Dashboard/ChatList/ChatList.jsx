@@ -22,7 +22,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await api.get('/api/chat/user-chats');
+        const res = await api.get('/chat/user-chats');
         setChats(res.data);
       } catch {
         setChats([]);
@@ -61,7 +61,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     setIsSearching(true);
     try {
       // Use correct backend route for user search
-      const res = await api.get(`/api/auth/search?q=${encodeURIComponent(value)}`);
+      const res = await api.get(`/auth/search?q=${encodeURIComponent(value)}`);
       // Exclude self and users already in chat list
       const chatUserIds = chats.flatMap(c => c.participants.map(p => p._id)).filter(id => id !== user._id);
       setSearchResults(res.data.filter(u => u._id !== user._id && !chatUserIds.includes(u._id)));
@@ -114,7 +114,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
 
   // Add new chat to chat list after creating
   const handleSelectUser = async (u) => {
-    const res = await api.post('/api/chat/create', { participantId: u._id });
+    const res = await api.post('/chat/create', { participantId: u._id });
     // Emit socket event for real-time chat creation
     if (socket) {
       socket.emit('chat_created', res.data);

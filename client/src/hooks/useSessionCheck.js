@@ -8,7 +8,7 @@ export default function useSessionCheck() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await api.get('/api/auth/profile');
+        const res = await api.get('/auth/profile');
         setUser(res.data);
       } catch {
         setUser(null);

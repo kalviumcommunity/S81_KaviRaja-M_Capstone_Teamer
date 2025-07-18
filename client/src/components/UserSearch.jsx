@@ -14,7 +14,7 @@ const UserSearch = ({ onSelectUser }) => {
       return;
     }
     const res = await axios.get(
-      `/api/users/search?q=${encodeURIComponent(e.target.value)}`,
+      `/users/search?q=${encodeURIComponent(e.target.value)}`,
       { withCredentials: true }
     );
     // Exclude self

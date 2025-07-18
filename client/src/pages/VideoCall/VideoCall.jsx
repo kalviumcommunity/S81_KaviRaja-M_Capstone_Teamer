@@ -39,7 +39,7 @@ const VideoCall = ({ callId: propCallId }) => {
       async function checkJoin() {
         try {
           const token = localStorage.getItem('token');
-          await axios.post(`/api/meetings/join/${callId}`, {
+          await axios.post(`/meetings/join/${callId}`, {
             userId: String(user?._id || user?.id)
           }, {
             headers: { 'Authorization': `Bearer ${token}` }

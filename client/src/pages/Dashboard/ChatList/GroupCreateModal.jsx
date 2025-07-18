@@ -18,7 +18,7 @@ const GroupCreateModal = ({ onClose, onGroupCreated, existingUsers }) => {
       return;
     }
     try {
-      const res = await axios.get(`/api/users/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
+      const res = await axios.get(`/users/search?q=${encodeURIComponent(value)}`, { withCredentials: true });
       setSearchResults(res.data.filter(u => !selectedUsers.some(su => su._id === u._id)));
     } catch {
       setSearchResults([]);
@@ -42,7 +42,7 @@ const GroupCreateModal = ({ onClose, onGroupCreated, existingUsers }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await axios.post('/api/chat/create-group', {
+      const res = await axios.post('/chat/create-group', {
         name: groupName,
         memberIds: selectedUsers.map(u => u._id),
       }, { withCredentials: true });

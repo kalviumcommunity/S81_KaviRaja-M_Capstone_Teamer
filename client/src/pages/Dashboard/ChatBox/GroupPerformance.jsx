@@ -6,7 +6,7 @@ const GroupPerformance = ({ onClose }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    fetch('/api/users/performance')
+    fetch('/users/performance')
       .then(res => res.json())
       .then(data => { setUsers(data); setLoading(false); })
       .catch(() => setUsers([]));

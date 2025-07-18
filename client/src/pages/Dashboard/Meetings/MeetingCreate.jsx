@@ -11,7 +11,7 @@ const MeetingCreate = ({ currentUser, onMeetingCreated, chatId }) => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/api/users')
+    api.get('/users')
       .then(res => setUsers(res.data))
       .catch(() => setUsers([]));
   }, []);
@@ -27,7 +27,7 @@ const MeetingCreate = ({ currentUser, onMeetingCreated, chatId }) => {
     }
     try {
       const token = localStorage.getItem('token');
-      const res = await api.post('/api/meetings', {
+      const res = await api.post('/meetings', {
         title,
         participants: participants.map(String),
         scheduledAt,

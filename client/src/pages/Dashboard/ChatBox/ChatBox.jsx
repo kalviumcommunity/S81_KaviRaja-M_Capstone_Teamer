@@ -364,7 +364,7 @@ const ChatBox = ({ chat }) => {
     if (!chat?._id) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get(`/api/meetings/chat/${chat._id}`, {
+      const res = await api.get(`/meetings/chat/${chat._id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       console.log('[DEBUG] Meetings fetched:', res.data);
@@ -487,7 +487,7 @@ if (isGroup) {
     const token = localStorage.getItem('token');
     try {
       // Always use backend API for creation
-      const res = await fetch('/api/polls', {
+      const res = await api.post('/polls', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

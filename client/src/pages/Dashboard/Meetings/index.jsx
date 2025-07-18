@@ -33,7 +33,7 @@ const MeetingsPage = () => {
     if (!user?._id && !user?.id) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/meetings/user/${user._id || user.id}`);
+      const res = await fetch(`/meetings/user/${user._id || user.id}`);
       const data = await res.json();
       setMeetings(data);
       setError('');

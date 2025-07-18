@@ -16,7 +16,7 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
   const [fetchedUser, setFetchedUser] = useState(null);
   useEffect(() => {
     if (userProp && userProp._id) {
-      api.get(`/api/auth/profile/${userProp._id}`)
+      api.get(`/auth/profile/${userProp._id}`)
         .then(res => setFetchedUser(res.data))
         .catch(() => setFetchedUser(userProp));
     }
@@ -31,7 +31,7 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
     const formData = new FormData();
     formData.append('avatar', file);
     try {
-      const res = await api.post('/api/auth/avatar', formData, {
+      const res = await api.post('/auth/avatar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setUser((prev) => ({ ...prev, avatar: res.data.avatar, avatarUpdatedAt: res.data.avatarUpdatedAt }));
@@ -50,13 +50,13 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
     const formData = new FormData();
     formData.append('qr', file);
     try {
-      const res = await api.post('/api/auth/payment-qr', formData, {
+      const res = await api.post('/auth/payment-qr', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setUser((prev) => ({ ...prev, paymentQr: res.data.paymentQr }));
       // Re-fetch profile if viewing own profile (to update fetchedUser)
       if (userProp && userProp._id) {
-        const profileRes = await api.get(`/api/auth/profile/${userProp._id}`);
+        const profileRes = await api.get(`/auth/profile/${userProp._id}`);
         setFetchedUser(profileRes.data);
       }
     } catch (err) {

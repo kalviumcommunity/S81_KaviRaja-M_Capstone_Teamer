@@ -153,7 +153,7 @@ const ChatBox = () => {
     // Fetch participants
     const fetchParticipants = async () => {
       try {
-        const response = await fetch('/api/participants');
+        const response = await fetch('/participants');
         const data = await response.json();
         setParticipants(data);
       } catch (error) {

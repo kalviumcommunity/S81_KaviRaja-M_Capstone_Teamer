@@ -11,7 +11,7 @@ const JoinMeeting = () => {
   useEffect(() => {
     const fetchMeeting = async () => {
       try {
-        const res = await axios.get(`/api/meetings/id/${meetingId}`);
+        const res = await axios.get(`/meetings/id/${meetingId}`);
         setMeeting(res.data);
       } catch {
         setError('Meeting not found or already ended.');

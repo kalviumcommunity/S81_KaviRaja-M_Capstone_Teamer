@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await api.get('/api/auth/profile');
+        const res = await api.get('/auth/profile');
         setUser(res.data);
       } catch (e) {
         setUser(null);
@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/auth/login', {
+      const res = await api.post('/auth/login', {
         email, password
       });
       if (!res.data || !res.data.user) throw new Error(res.data.message || 'Login failed');
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/auth/register', {
+      const res = await api.post('/auth/register', {
         name, email, password, username
       });
       if (!res.data) throw new Error(res.data.message || 'Registration failed');
