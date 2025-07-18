@@ -28,7 +28,8 @@ export const AuthProvider = ({ children }) => {
       const res = await api.post('/auth/login', {
         email, password
       });
-      if (!res.data || !res.data.user) throw new Error(res.data.message || 'Login failed');
+      if (!res.data || !res.data.user || !res.data.token) throw new Error(res.data.message || 'Login failed');
+      localStorage.setItem('token', res.data.token);
       setUser(res.data.user);
       return res.data.user;
     } catch (err) {
@@ -50,7 +51,8 @@ export const AuthProvider = ({ children }) => {
       const res = await api.post('/auth/register', {
         name, email, password, username
       });
-      if (!res.data) throw new Error(res.data.message || 'Registration failed');
+      if (!res.data || !res.data.token) throw new Error(res.data.message || 'Registration failed');
+      localStorage.setItem('token', res.data.token);
       return res.data;
     } catch (err) {
       setError(err.message);

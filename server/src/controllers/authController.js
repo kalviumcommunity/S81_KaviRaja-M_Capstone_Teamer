@@ -171,7 +171,8 @@ export const register = async (req, res) => {
 
     res.status(201).json({
       message: "User registered successfully",
-      user
+      user,
+      token
     });
   } catch (error) {
     res.status(500).json({
@@ -213,7 +214,7 @@ export const login = async (req, res) => {
     });
 
     console.log('Login successful:', user.email);
-    res.status(200).json({ message: "Login successful", user });
+    res.status(200).json({ message: "Login successful", user, token });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: "Server error", error: error.message, stack: error.stack });
