@@ -27,10 +27,24 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 router.get('/google/callback',
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
-    // Issue a JWT and redirect to frontend with token
-    const token = req.user.generateToken();
-    res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
-  }
-);
+    // Use Netlify URL in production, localhost in development
+    const frontendUrl = process.env.NODE_ENV === 'production'
+      ? 'https://teamerwork.netlify.app'
+      : 'http://localhost:5173';
+    
+    if (!req.user) {
+      console.error('Google OAuth failed: No user returned');
+      return res.redirect(`${frontendUrl}/login?error=Google authentication failed`);
+    }
+    
+    try {
+      const token = req.user.generateToken();
+      console.log('Google OAuth successful for user:', req.user.email);
+      res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Error generating token:', error);
+      res.redirect(`${frontendUrl}/login?error=Token generation failed`);
+    }
+  });
 
 export default router;

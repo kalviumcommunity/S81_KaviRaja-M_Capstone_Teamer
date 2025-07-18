@@ -4,7 +4,13 @@ import { User } from '../models/userModel.js';
 const configureSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"], // Added 5174
+      origin: [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "https://teamerwork.netlify.app",
+        "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
+      ],
       credentials: true,
     },
   });

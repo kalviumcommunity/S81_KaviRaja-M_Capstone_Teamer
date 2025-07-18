@@ -29,8 +29,10 @@ app.use('/uploads/payment_qr', express.static(path.join(process.cwd(), 'uploads'
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "http://localhost:5174", // Added for Vite dev server
-  "http://localhost:3000"
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "https://teamerwork.netlify.app",
+  "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
 ];
 
 app.use(

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { getBackendURL } from '../../utils/fetchApi';
 
 const Login = () => {
   const { login, user } = useAuth();
@@ -251,7 +252,7 @@ const Login = () => {
         
         {/* Google Login Button */}
         <button
-          onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+          onClick={() => window.location.href = getBackendURL() + '/api/auth/google'}
           className="bg-white text-gray-800 py-2 px-4 rounded-lg shadow flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
         >
           <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" className="w-5 h-5" />
