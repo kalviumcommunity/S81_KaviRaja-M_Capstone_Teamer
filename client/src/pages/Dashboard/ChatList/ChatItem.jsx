@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check, CheckCheck, Pin } from 'lucide-react';
+import { getBackendURL } from '../../../utils/fetchApi';
 
 const ChatItem = ({ chat, isSelected, onClick }) => {
   const {
@@ -44,7 +45,7 @@ const ChatItem = ({ chat, isSelected, onClick }) => {
       <div className="relative">
         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
           <img 
-            src={avatar ? `${avatar.startsWith('http') ? '' : 'http://localhost:5000'}${avatar}${chat.avatarUpdatedAt ? `?t=${chat.avatarUpdatedAt}` : ''}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
+            src={avatar ? `${avatar.startsWith('http') ? '' : getBackendURL()}${avatar}${chat.avatarUpdatedAt ? `?t=${chat.avatarUpdatedAt}` : ''}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
             alt={name} 
             className="w-full h-full object-cover"
             onError={(e) => {

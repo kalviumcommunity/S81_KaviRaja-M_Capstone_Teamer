@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, Users, Crown, X, ChevronRight } from 'lucide-react';
 import GroupPerformance from './GroupPerformance';
+import { getBackendURL } from '../../../utils/fetchApi';
 
 const GroupInfo = ({ group, onClose, onMemberClick }) => {
   const [showPerformance, setShowPerformance] = useState(false);
@@ -59,7 +60,7 @@ const GroupInfo = ({ group, onClose, onMemberClick }) => {
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden mr-3">
                   <img
-                    src={member.avatar ? `${member.avatar.startsWith('http') ? '' : 'http://localhost:5000'}${member.avatar}${member.avatarUpdatedAt ? `?t=${member.avatarUpdatedAt}` : ''}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=random`}
+                    src={member.avatar ? `${member.avatar.startsWith('http') ? '' : getBackendURL()}${member.avatar}${member.avatarUpdatedAt ? `?t=${member.avatarUpdatedAt}` : ''}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=random`}
                     alt={member.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {

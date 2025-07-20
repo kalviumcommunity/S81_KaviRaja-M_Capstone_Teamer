@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useSocket } from '../../../context/SocketContext';
 import { useChat } from '../../../context/ChatContext';
 import GroupCreateModal from './GroupCreateModal';
+import { getBackendURL } from '../../../utils/fetchApi';
 
 const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -166,7 +167,7 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
                   onClick={() => handleSelectUser(u)}
                 >
                   <img
-                    src={u.avatar ? `${u.avatar.startsWith('http') ? '' : 'http://localhost:5000'}${u.avatar}?t=${u.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`}
+                    src={u.avatar ? `${u.avatar.startsWith('http') ? '' : getBackendURL()}${u.avatar}?t=${u.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=random`}
                     alt={u.name}
                     className="w-10 h-10 rounded-full object-cover"
                   />

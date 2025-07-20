@@ -18,7 +18,7 @@ import VideoCall from '../../../pages/VideoCall/VideoCall';
 import VoiceCallModal from './VoiceCallModal';
 import CreateMeeting from './CreateMeeting';
 import MeetingCard from './MeetingCard';
-import { uploadChatFile, fetchTasks, createTask, updateTask, fetchPolls, fetchSchedules, createSchedule } from '../../../utils/fetchApi';
+import { uploadChatFile, fetchTasks, createTask, updateTask, fetchPolls, fetchSchedules, createSchedule, getBackendURL } from '../../../utils/fetchApi';
 import axios from 'axios';
 import api from '../../../utils/fetchApi';
 
@@ -582,7 +582,7 @@ if (isGroup) {
               <img
                 src={(() => {
                   const other = chat.participants.find(p => p._id !== user._id);
-                  return other?.avatar ? `${other.avatar.startsWith('http') ? '' : 'http://localhost:5000'}${other.avatar}?t=${other.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
+                  return other?.avatar ? `${other.avatar.startsWith('http') ? '' : getBackendURL()}${other.avatar}?t=${other.avatarUpdatedAt || Date.now()}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || 'User')}&background=random`;
                 })()}
                 alt={(() => {
                   const other = chat.participants.find(p => p._id !== user._id);
@@ -975,7 +975,7 @@ if (isGroup) {
       >
         <img
           key={user.avatar}
-          src={user.avatar && !user.avatar.startsWith('http') ? `http://localhost:5000${user.avatar}?t=${user.avatarUpdatedAt || Date.now()}` : (user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`)}
+          src={user.avatar && !user.avatar.startsWith('http') ? `${getBackendURL()}${user.avatar}?t=${user.avatarUpdatedAt || Date.now()}` : (user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`)}
           alt={user.name}
           className="w-12 h-12 rounded-full object-cover"
           onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`; }}

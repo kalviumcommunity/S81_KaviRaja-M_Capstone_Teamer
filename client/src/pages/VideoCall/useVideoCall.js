@@ -390,19 +390,31 @@ export function useVideoCall(callId) {
       }
       if (data.type === 'offer') {
         try {
-          console.log('[WebRTC] setRemoteDescription(offer) from', from);
-          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socket.emit('signal', { callId, to: from, from: user._id, fromName: user.name, data: { type: 'answer', sdp: answer } });
-          console.log('[WebRTC] Sent answer to', from);
+          console.log('[WebRTC] setRemoteDescription(offer) from', from, 'signalingState:', pc.signalingState);
+          if (pc.signalingState === 'stable') {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('signal', { callId, to: from, from: user._id, fromName: user.name, data: { type: 'answer', sdp: answer } });
+            console.log('[WebRTC] Sent answer to', from);
+          } else {
+            console.warn('[WebRTC] Ignored setRemoteDescription(offer) because signalingState is', pc.signalingState);
+          }
         } catch (err) {
           console.error('[WebRTC] setRemoteDescription(offer) error:', err);
         }
       } else if (data.type === 'answer') {
         try {
-          console.log('[WebRTC] setRemoteDescription(answer) from', from);
-          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          console.log('[WebRTC] setRemoteDescription(answer) from', from, 'signalingState:', pc.signalingState);
+          // Only set remote description if not already set
+          if (
+            pc.signalingState === 'have-local-offer' ||
+            pc.signalingState === 'have-remote-offer'
+          ) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          } else {
+            console.warn('[WebRTC] Ignored setRemoteDescription(answer) because signalingState is', pc.signalingState);
+          }
         } catch (err) {
           console.error('[WebRTC] setRemoteDescription(answer) error:', err);
         }
