@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { CreditCard, Mail, Phone, Calendar, Activity, X, Crown, MessageSquare, CheckSquare, BarChart2, Upload } from 'lucide-react';
-import api from '../../../utils/fetchApi';
+import api, { getBackendURL } from '../../../utils/fetchApi';
 
 const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
   const { user: authUser, setUser } = useAuth();
@@ -14,13 +14,36 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
   const [qrError, setQrError] = useState(null);
   const qrInputRef = useRef();
   const [fetchedUser, setFetchedUser] = useState(null);
+  const [upiId, setUpiId] = useState(user.upiId || '');
+  const [upiLoading, setUpiLoading] = useState(false);
+  const [upiError, setUpiError] = useState(null);
   useEffect(() => {
     if (userProp && userProp._id) {
       api.get(`/auth/profile/${userProp._id}`)
-        .then(res => setFetchedUser(res.data))
-        .catch(() => setFetchedUser(userProp));
+        .then(res => {
+          setFetchedUser(res.data);
+          setUpiId(res.data.upiId || '');
+        })
+        .catch(() => {
+          setFetchedUser(userProp);
+          setUpiId(userProp.upiId || '');
+        });
+    } else {
+      setUpiId(user.upiId || '');
     }
-  }, [userProp]);
+  }, [userProp, user.upiId]);
+  const handleUpiSave = async () => {
+    setUpiLoading(true);
+    setUpiError(null);
+    try {
+      const res = await api.post('/auth/upi', { upiId });
+      setUser((prev) => ({ ...prev, upiId: res.data.upiId }));
+    } catch (err) {
+      setUpiError(err.response?.data?.message || err.message);
+    } finally {
+      setUpiLoading(false);
+    }
+  };
   const displayUser = fetchedUser || user;
 
   const handleAvatarChange = async (e) => {
@@ -81,7 +104,7 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
         <div className="text-center mb-8">
           <div className="relative w-32 h-32 rounded-full overflow-hidden mx-auto mb-4 group border-4 border-blue-700 shadow-lg">
             <img
-              src={displayUser.avatar && !displayUser.avatar.startsWith('http') ? `http://localhost:5000${displayUser.avatar}?t=${displayUser.avatarUpdatedAt || Date.now()}` : (displayUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser.name)}&background=random`)}
+              src={displayUser.avatar && !displayUser.avatar.startsWith('http') ? `${getBackendURL()}${displayUser.avatar}?t=${displayUser.avatarUpdatedAt || Date.now()}` : (displayUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser.name)}&background=random`)}
               alt={displayUser.name}
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -178,40 +201,68 @@ const UserProfile = ({ user: userProp, onClose, onPaymentClick }) => {
           </div>
         </div>
 
-        {/* Payment Button */}
-        {(!userProp || (authUser && userProp._id === authUser._id)) ? (
-          <div className="mt-4">
-            <label className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors cursor-pointer">
-              <Upload className="w-5 h-5" />
-              <span>{displayUser.paymentQr ? 'Update Payment QR Code' : 'Upload Payment QR Code'}</span>
-              <input
-                type="file"
-                accept="image/*"
-                ref={qrInputRef}
-                className="hidden"
-                onChange={handleQrChange}
-                disabled={qrUploading}
-              />
-            </label>
-            {qrUploading && <div className="text-blue-400 text-xs mt-2">Uploading QR code...</div>}
-            {qrError && <div className="text-red-400 text-xs mt-2">{qrError}</div>}
-            {displayUser.paymentQr && (
-              <div className="mt-4 flex flex-col items-center">
-                <img src={`http://localhost:5000${displayUser.paymentQr}?t=${Date.now()}`} alt="Payment QR" className="w-40 h-40 object-contain border-2 border-gray-700 rounded-lg" />
-                <span className="text-xs text-gray-400 mt-2">This is your payment QR code. Others can scan this to pay you.</span>
+        {/* Payment & UPI Section */}
+        <div className="mt-4">
+          {/* Only show QR upload for self */}
+          {(!userProp || (authUser && userProp._id === authUser._id)) && (
+            <>
+              <label className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors cursor-pointer">
+                <Upload className="w-5 h-5" />
+                <span>{displayUser.paymentQr ? 'Update Payment QR Code' : 'Upload Payment QR Code'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={qrInputRef}
+                  className="hidden"
+                  onChange={handleQrChange}
+                  disabled={qrUploading}
+                />
+              </label>
+              {qrUploading && <div className="text-blue-400 text-xs mt-2">Uploading QR code...</div>}
+              {qrError && <div className="text-red-400 text-xs mt-2">{qrError}</div>}
+            </>
+          )}
+          {/* Always show QR if exists */}
+          {displayUser.paymentQr && (
+            <div className="mt-4 flex flex-col items-center">
+              <img src={`${getBackendURL()}${displayUser.paymentQr}?t=${Date.now()}`} alt="Payment QR" className="w-40 h-40 object-contain border-2 border-gray-700 rounded-lg" />
+              <span className="text-xs text-gray-400 mt-2">This is the payment QR code. Others can scan this to pay.</span>
+            </div>
+          )}
+          {/* UPI ID Section - always visible if set */}
+          <div className="mt-6">
+            <label className="block text-sm font-semibold text-white mb-2">UPI ID</label>
+            {(!userProp || (authUser && userProp._id === authUser._id)) && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={upiId}
+                  onChange={e => setUpiId(e.target.value)}
+                  placeholder="your-upi@bank"
+                  className="flex-1 px-3 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none"
+                  disabled={upiLoading}
+                />
+                <button
+                  onClick={handleUpiSave}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+                  disabled={upiLoading}
+                >{upiLoading ? 'Saving...' : 'Save'}</button>
               </div>
             )}
+            {upiError && <div className="text-red-400 text-xs mt-2">{upiError}</div>}
+            {displayUser.upiId && (
+              <div className="mt-2 text-xs text-gray-400">UPI ID: <span className="font-mono text-green-400">{displayUser.upiId}</span></div>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => setShowQrModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors mt-4"
-            disabled={!displayUser.paymentQr}
-          >
-            <CreditCard className="w-5 h-5" />
-            <span>Pay</span>
-          </button>
-        )}
+        </div>
+        <button
+          onClick={() => setShowQrModal(true)}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors mt-4"
+          disabled={!displayUser.paymentQr}
+        >
+          <CreditCard className="w-5 h-5" />
+          <span>Pay</span>
+        </button>
         {/* QR Modal for paying others */}
         {showQrModal && displayUser.paymentQr && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-80 z-50">

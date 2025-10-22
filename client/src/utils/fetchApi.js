@@ -1,9 +1,7 @@
 // Configuration for backend URLs
 export const getBackendURL = () => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'teamerwork.netlify.app') {
-    return 'https://s81-kaviraja-m-capstone-teamer-2.onrender.com';
-  }
-  return 'http://localhost:5000';
+  // Use VITE_BACKEND_URL from environment, fallback to localhost
+  return import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 };
 
 import axios from 'axios';

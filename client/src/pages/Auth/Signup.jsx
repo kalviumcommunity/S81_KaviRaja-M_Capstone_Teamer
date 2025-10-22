@@ -30,6 +30,8 @@ const Signup = () => {
     e.preventDefault();
     try {
       await register(formData.name, formData.email, formData.password, formData.username);
+      // Redirect to login after successful signup
+      navigate("/login");
     } catch (err) {
       setError(err.message || "Registration failed");
     }

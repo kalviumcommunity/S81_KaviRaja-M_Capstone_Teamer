@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String }, // URL to profile photo
   avatarUpdatedAt: { type: Date },
   paymentQr: { type: String }, // URL to payment QR code image
+  upiId: { type: String }, // UPI ID for payments
   performanceScore: { type: Number, default: 0 },
   googleId: { type: String, unique: true, sparse: true }, // For Google OAuth
 });

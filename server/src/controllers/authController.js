@@ -1,3 +1,15 @@
+// Update UPI ID
+export const updateUPIId = async (req, res) => {
+  try {
+    const { upiId } = req.body;
+    if (!upiId) return res.status(400).json({ message: 'No UPI ID provided' });
+    req.user.upiId = upiId;
+    await req.user.save();
+    res.json({ upiId });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update UPI ID', error });
+  }
+};
 import path from 'path';
 
 // Upload/Update user avatar

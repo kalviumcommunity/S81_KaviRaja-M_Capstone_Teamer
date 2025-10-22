@@ -1,6 +1,6 @@
 
+import 'dotenv/config';
 import path from 'path';
-import dotenv from "dotenv";
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -17,7 +17,6 @@ import meetingRoutes from './routes/meetingRoutes.js';
 import session from 'express-session';
 import passport from './config/passport.js';
 
-dotenv.config();
 const app = express();
 // Serve uploaded avatars statically (after app is initialized)
 // Serve avatars from both possible locations for safety
@@ -27,13 +26,15 @@ app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'uploads', '
 app.use('/uploads/payment_qr', express.static(path.join(process.cwd(), 'server', 'uploads', 'payment_qr')));
 app.use('/uploads/payment_qr', express.static(path.join(process.cwd(), 'uploads', 'payment_qr')));
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:3000",
-  "https://teamerwork.netlify.app",
-  "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
-];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:3000",
+      "https://teamerwork.netlify.app",
+      "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
+    ]);
 
 app.use(
   cors({
@@ -71,7 +72,6 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use("/api/users", authRoutes);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
