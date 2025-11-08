@@ -243,13 +243,13 @@ const Login = () => {
         </div>
         
         {/* Google Login Button */}
-        <button
+        {/* <button
           onClick={() => window.location.href = getBackendURL() + '/api/auth/google'}
           className="bg-white text-gray-800 py-2 px-4 rounded-lg shadow flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
         >
           <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" className="w-5 h-5" />
           Sign in with Google
-        </button>
+        </button> */}
         
         <p className="text-sm text-center text-gray-400 mt-4">
           Don't have an account?{" "}

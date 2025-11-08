@@ -14,10 +14,11 @@ const Signup = () => {
     username: ""
   });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // ✅ Redirect if already logged in (skip if currently on signup)
   useEffect(() => {
-    if (user) {
+    if (user && window.location.pathname !== "/signup") {
       navigate("/dashboard");
     }
   }, [user, navigate]);
@@ -28,19 +29,31 @@ const Signup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      await register(formData.name, formData.email, formData.password, formData.username);
-      // Redirect to login after successful signup
+      // ✅ Call the register function (should only register, not log in)
+      const res = await register(
+        formData.name,
+        formData.email,
+        formData.password,
+        formData.username
+      );
+
+      // ✅ If register succeeds, redirect to login
+      alert("Account created successfully! Please log in.");
       navigate("/login");
     } catch (err) {
+      console.error("Signup failed:", err);
       setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-black overflow-hidden">
 
-      {/* Floating Icons Around Screen */}
+      {/* Floating Icons */}
       <motion.div
         className="absolute top-10 left-10 text-red-500"
         animate={{ rotate: 360, x: [0, 100, 0], y: [0, -100, 0] }}
@@ -142,25 +155,29 @@ const Signup = () => {
           />
           <button
             type="submit"
+            disabled={loading}
             className="w-full py-3 bg-black text-white text-lg font-bold rounded-lg hover:bg-gray-800 transition duration-300"
           >
-            Register
+            {loading ? "Creating Account..." : "Register"}
           </button>
         </form>
+
         {/* Divider */}
         <div className="flex items-center my-4">
           <div className="flex-1 border-t border-gray-600"></div>
           <span className="px-3 text-gray-400 text-sm">or</span>
           <div className="flex-1 border-t border-gray-600"></div>
         </div>
-        {/* Google Signup Button */}
-        <button
+
+        {/* Google Signup Button (optional) */}
+        {/* <button
           onClick={() => window.location.href = getBackendURL() + '/api/auth/google'}
           className="w-full bg-white text-gray-800 py-2 px-4 rounded-lg shadow flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors mb-4"
         >
           <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" className="w-5 h-5" />
           Sign up with Google
-        </button>
+        </button> */}
+
         <div className="mt-4 text-center">
           <p className="text-white">
             Already have an account?{" "}
