@@ -1,183 +1,45 @@
-// Update UPI ID
-export const updateUPIId = async (req, res) => {
-  try {
-    const { upiId } = req.body;
-    if (!upiId) return res.status(400).json({ message: 'No UPI ID provided' });
-    req.user.upiId = upiId;
-    await req.user.save();
-    res.json({ upiId });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update UPI ID', error });
-  }
-};
-import path from 'path';
-
-// Upload/Update user avatar
-export const uploadAvatar = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    // Save the file path as the avatar URL (relative to server root)
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    req.user.avatar = avatarUrl;
-    req.user.avatarUpdatedAt = new Date();
-    await req.user.save();
-
-    // Emit socket event to all clients (WhatsApp-like real-time update)
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('user_avatar_updated', { userId: req.user._id, avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
-    }
-
-    res.json({ avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
-  } catch (error) {
-    res.status(500).json({ message: 'Avatar upload failed', error });
-  }
-};
-// import bcrypt from "bcryptjs";
-// import { User } from "../models/userModel.js";
-// import jwt from "jsonwebtoken";
-
-// export const register = async (req, res) => {
-//   try {
-//     const { username, name, email, password } = req.body;
-    
-
-//     const normalizedEmail = email.trim().toLowerCase();
-    
-
-//     let user = await User.findOne({ username });
-//     if (user) {
-//       return res.status(400).json({ 
-//         message: "Username already exists. Please choose a different username." 
-//       });
-//     }
-
-
-//     user = await User.findOne({ 
-//       email: { $regex: `^${normalizedEmail}$`, $options: 'i' } 
-//     });
-//     if (user) {
-//       return res.status(400).json({ 
-//         message: "User already exists with this email. Please use a different email address." 
-//       });
-//     }
-
-//     const hashedPassword = await bcrypt.hash(password, 10);
-//     user = new User({ 
-//       username,
-//       name: name.trim(),
-//       email: normalizedEmail,
-//       password: hashedPassword 
-//     });
-
-//     await user.save();
-
-//     const token = user.generateToken();
-//     res.cookie("token", token, { 
-//       httpOnly: true, 
-//       secure: true, 
-//       sameSite: "Strict" 
-//     });
-
-//     res.status(201).json({ 
-//       message: "User registered successfully", 
-//       user 
-//     });
-//   } catch (error) {
-//     res.status(500).json({ 
-//       message: "Server error", 
-//       error 
-//     });
-//   }
-// };
-
-
-
-// export const login = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       return res.status(400).json({ message: "Invalid credentials" });
-//     }
-
-//     const isMatch = await bcrypt.compare(password, user.password);
-//     if (!isMatch) {
-//       return res.status(400).json({ message: "Invalid credentials" });
-//     }
-
-//     const token = user.generateToken();
-//     res.cookie("token", token, { httpOnly: true, secure: true, sameSite: "Strict" });
-
-//     res.status(200).json({ message: "Login successful", user });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error });
-//   }
-// };
-
-// export const logout = (req, res) => {
-//   res.clearCookie("token");
-//   res.status(200).json({ message: "Logout successful" });
-// };
-
-// export const getProfile = async (req, res) => {
-//   try {
-//     const user = req.user;
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-//     res.json(user);
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error", error });
-//   }
-// };
-
-
-
 import bcrypt from "bcryptjs";
 import { User } from "../models/userModel.js";
 import jwt from "jsonwebtoken";
+import asyncHandler from "../utils/asyncHandler.js";
 
-export const register = async (req, res) => {
-  try {
-    const { username, name, email, password } = req.body;
+// Register user
+export const register = asyncHandler(async (req, res) => {
+  const { username, name, email, password } = req.body;
 
+  if (!username || !name || !email || !password) {
+    res.status(400);
+    throw new Error("All fields are required");
+  }
 
-    const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
+  const userExists = await User.findOne({ username });
+  if (userExists) {
+    res.status(400);
+    throw new Error("Username already exists. Please choose a different username.");
+  }
 
-    let user = await User.findOne({ username });
-    if (user) {
-      return res.status(400).json({
-        message: "Username already exists. Please choose a different username."
-      });
-    }
+  const emailExists = await User.findOne({
+    email: { $regex: `^${normalizedEmail}$`, $options: 'i' }
+  });
+  if (emailExists) {
+    res.status(400);
+    throw new Error("User already exists with this email. Please use a different email address.");
+  }
 
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const user = await User.create({
+    username,
+    name: name.trim(),
+    email: normalizedEmail,
+    password: hashedPassword
+  });
 
-    user = await User.findOne({
-      email: { $regex: `^${normalizedEmail}$`, $options: 'i' }
-    });
-    if (user) {
-      return res.status(400).json({
-        message: "User already exists with this email. Please use a different email address."
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user = new User({
-      username,
-      name: name.trim(),
-      email: normalizedEmail,
-      password: hashedPassword
-    });
-
-    await user.save();
-
+  if (user) {
     const token = user.generateToken();
     res.cookie("token", token, {
       httpOnly: true,
-      // secure: true, // <-- COMMENT OUT or REMOVE this line
       sameSite: "Strict"
     });
 
@@ -186,116 +48,128 @@ export const register = async (req, res) => {
       user,
       token
     });
-  } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error
-    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid user data");
   }
-};
+});
 
+// Login user
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log('Login attempt:', { email });
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.log('User not found');
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    if (!user.password) {
-      console.log('User has no password field:', user);
-      return res.status(500).json({ message: "User record corrupted: no password hash." });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      console.log('Password mismatch');
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    const token = user.generateToken();
-    res.cookie("token", token, {
-      httpOnly: true,
-      // secure: true, // <-- COMMENT OUT or REMOVE this line
-      sameSite: "Strict"
-    });
-
-    console.log('Login successful:', user.email);
-    res.status(200).json({ message: "Login successful", user, token });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: "Server error", error: error.message, stack: error.stack });
+  const user = await User.findOne({ email });
+  if (!user) {
+    res.status(400);
+    throw new Error("Invalid credentials");
   }
-};
 
-export const logout = (req, res) => {
+  if (!user.password) {
+    res.status(500);
+    throw new Error("User record corrupted: no password hash.");
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    res.status(400);
+    throw new Error("Invalid credentials");
+  }
+
+  const token = user.generateToken();
+  res.cookie("token", token, {
+    httpOnly: true,
+    sameSite: "Strict"
+  });
+
+  res.status(200).json({ message: "Login successful", user, token });
+});
+
+// Logout user
+export const logout = asyncHandler(async (req, res) => {
   res.clearCookie("token");
   res.status(200).json({ message: "Logout successful" });
-};
+});
 
-export const getProfile = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+// Get user profile
+export const getProfile = asyncHandler(async (req, res) => {
+  const user = req.user;
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
   }
-};
+  res.json(user);
+});
 
-export const searchUsers = async (req, res) => {
-  try {
-    const query = req.query.q;
-    if (!query) return res.json([]);
-    const users = await User.find({
-      $or: [
-        { username: { $regex: query, $options: 'i' } },
-        { name: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } }
-      ]
-    }).select('-password');
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ message: "Error searching users", error: error.message });
-  }
-};
+// Search users
+export const searchUsers = asyncHandler(async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.json([]);
+  const users = await User.find({
+    $or: [
+      { username: { $regex: query, $options: 'i' } },
+      { name: { $regex: query, $options: 'i' } },
+      { email: { $regex: query, $options: 'i' } }
+    ]
+  }).select('-password');
+  res.json(users);
+});
 
-// Get all users with name and performanceScore (for performance graph)
-export const getAllUsersPerformance = async (req, res) => {
-  try {
-    const users = await User.find({}, 'name performanceScore');
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching users', error: error.message });
+// Update UPI ID
+export const updateUPIId = asyncHandler(async (req, res) => {
+  const { upiId } = req.body;
+  if (!upiId) {
+    res.status(400);
+    throw new Error('No UPI ID provided');
   }
-};
+  req.user.upiId = upiId;
+  await req.user.save();
+  res.json({ upiId });
+});
 
-export const uploadPaymentQr = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    const qrUrl = `/uploads/payment_qr/${req.file.filename}`;
-    req.user.paymentQr = qrUrl;
-    await req.user.save();
-    res.json({ paymentQr: qrUrl });
-  } catch (error) {
-    res.status(500).json({ message: 'QR upload failed', error });
+// Upload/Update user avatar
+export const uploadAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error('No file uploaded');
   }
-};
+  const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+  req.user.avatar = avatarUrl;
+  req.user.avatarUpdatedAt = new Date();
+  await req.user.save();
 
-export const getUserProfile = async (req, res) => {
-  try {
-    const userId = req.params.userId;
-    const user = await User.findById(userId).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch user profile', error });
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('user_avatar_updated', { userId: req.user._id, avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
   }
-};
+
+  res.json({ avatar: avatarUrl, avatarUpdatedAt: req.user.avatarUpdatedAt });
+});
+
+// Get all users' performance
+export const getAllUsersPerformance = asyncHandler(async (req, res) => {
+  const users = await User.find({}, 'name performanceScore');
+  res.json(users);
+});
+
+// Upload payment QR
+export const uploadPaymentQr = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error('No file uploaded');
+  }
+  const qrUrl = `/uploads/payment_qr/${req.file.filename}`;
+  req.user.paymentQr = qrUrl;
+  await req.user.save();
+  res.json({ paymentQr: qrUrl });
+});
+
+// Get another user's profile
+export const getUserProfile = asyncHandler(async (req, res) => {
+  const userId = req.params.userId;
+  const user = await User.findById(userId).select('-password');
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+  res.json(user);
+});

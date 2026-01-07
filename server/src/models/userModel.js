@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema({
   paymentQr: { type: String }, // URL to payment QR code image
   upiId: { type: String }, // UPI ID for payments
   performanceScore: { type: Number, default: 0 },
-  googleId: { type: String, unique: true, sparse: true }, // For Google OAuth
+
 });
 
 userSchema.methods.generateToken = function () {
