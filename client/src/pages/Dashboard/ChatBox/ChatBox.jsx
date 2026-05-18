@@ -5,6 +5,7 @@ import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { useChat } from '../../../context/ChatContext';
 import { useAuth } from '../../../context/AuthContext';
+import toast from 'react-hot-toast';
 import GroupMenu from './GroupMenu';
 import GroupInfo from './GroupInfo';
 import UserProfile from './UserProfile';
@@ -53,9 +54,12 @@ const ChatBox = ({ chat }) => {
   const navigate = useNavigate();
   // --- Meeting Join By ID Modal State ---
   const [showJoinById, setShowJoinById] = useState(false);
+  const [typingUser, setTypingUser] = useState(null);
+  const typingTimeoutRef = useRef(null);
+
   function handleJoinMeetingById(meetId) {
     setShowJoinById(false);
-    window.location.href = `/video-call/${meetId}`;
+    navigate(`/video-call/${meetId}`);
   }
 
   // --- Video Call Socket Logic ---
@@ -80,7 +84,7 @@ const ChatBox = ({ chat }) => {
       } else {
         setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
         setCurrentCallId(null);
-        alert('Call declined');
+        toast.error('Call declined');
       }
     };
     // Listen for call cancel
@@ -98,7 +102,7 @@ const ChatBox = ({ chat }) => {
       callTimeout = setTimeout(() => {
         setVideoCallModal({ open: false, caller: null, isIncoming: false, isRinging: false });
         setCurrentCallId(null);
-        alert('No answer');
+        toast('No answer', { icon: '📵' });
         // Optionally, emit cancel event
         const latestChat = chats.find(c => c._id === chat._id) || chat;
         const other = latestChat.participants.find(p => p._id !== user._id);
@@ -112,6 +116,25 @@ const ChatBox = ({ chat }) => {
       socket.off('video-call-cancel', handleVideoCallCancel);
     };
   }, [socket, chat, user._id, videoCallModal.open]);
+
+  // --- Typing Indicator Logic ---
+  useEffect(() => {
+    if (!socket || !chat?._id) return;
+    const handleTypingStatus = ({ chatId, userId, isTyping }) => {
+      if (chatId === chat._id && userId !== user._id) {
+        if (isTyping) {
+          const tUser = chat.participants?.find(p => (p._id || p.id) === userId);
+          setTypingUser(tUser ? (tUser.name || tUser.username) : 'Someone');
+        } else {
+          setTypingUser(null);
+        }
+      }
+    };
+    socket.on('typing_status', handleTypingStatus);
+    return () => {
+      socket.off('typing_status', handleTypingStatus);
+    };
+  }, [socket, chat?._id, chat?.participants, user._id]);
 
   // Ensure showVideoCall is only set after currentCallId is set (prevents race condition)
   useEffect(() => {
@@ -397,35 +420,44 @@ const ChatBox = ({ chat }) => {
   // Join Meet handler
   const handleJoinMeeting = (meeting) => {
     // Redirect to video call page with meetingId
-    window.location.href = `/video-call/${meeting.meetId}`;
+    navigate(`/video-call/${meeting.meetId}`);
   };
 
   if (!chat) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400">
-        Select a chat to start messaging
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-gray-950">
+        <div className="w-24 h-24 mb-6 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/30">
+          <Smile size={48} className="text-blue-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Welcome to Teamer</h2>
+        <p className="text-gray-500">Select a chat from the sidebar to start messaging</p>
 
-      {/* My Profile Floating Button */}
-      <button
-        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg border-4 border-blue-600 bg-gray-900 flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
-        title="View My Profile"
-        disabled={!user}
-        onClick={() => {
-          if (!user) return;
-          setShowUserProfile(true);
-        }}
-        style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
-      >
-        <img
-          src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`}
-          alt={user?.name || 'User'}
-          className="w-12 h-12 rounded-full object-cover"
-          onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`; }}
-        />
-      </button>
-    </div>
-  );
-};
+        {/* My Profile Floating Button */}
+        <button
+          className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full shadow-lg border-4 border-blue-600 bg-gray-900 flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
+          title="View My Profile"
+          disabled={!user}
+          onClick={() => {
+            if (!user) return;
+            setShowUserProfile(true);
+          }}
+          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
+        >
+          <img
+            src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`}
+            alt={user?.name || 'User'}
+            className="w-12 h-12 rounded-full object-cover"
+            onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`; }}
+          />
+        </button>
+
+        {/* Modal for My Profile */}
+        {showUserProfile && selectedUser === null && (
+          <UserProfile user={user} onClose={() => setShowUserProfile(false)} />
+        )}
+      </div>
+    );
+  }
 
   const isGroup = chat.isGroupChat;
   // Robust admin check: groupAdmin can be id or user object
@@ -443,6 +475,21 @@ if (isGroup) {
     if (input.trim()) {
       sendMessage(chat._id, input);
       setInput('');
+      if (socket) {
+        socket.emit('stop_typing', { chatId: chat._id, userId: user._id });
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      }
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    if (socket && chat?._id) {
+      socket.emit('typing', { chatId: chat._id, userId: user._id });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stop_typing', { chatId: chat._id, userId: user._id });
+      }, 2000);
     }
   };
 
@@ -786,35 +833,14 @@ if (isGroup) {
             );
           }
           if (item._type === 'poll') {
-            // WhatsApp-like poll bubble styling
-            // Use sender logic like messages: if poll.creator matches user._id, it's mine
-            let isMine = false;
-            // TRIPLE CHECK: Always treat poll as mine if creator matches user._id (string or object)
-            // Fix: Use a unique variable name for poll alignment
-            // Use a unique variable name for poll alignment to avoid redeclaration
-            let pollAlignMine = false;
-            if (item.creator) {
-              if (typeof item.creator === 'string' || typeof item.creator === 'number') {
-                pollAlignMine = String(item.creator) === String(user._id);
-              } else if (item.creator._id) {
-                pollAlignMine = String(item.creator._id) === String(user._id);
-              } else if (item.creator.id) {
-                pollAlignMine = String(item.creator.id) === String(user._id);
-              }
-            }
-            // Show poll on right if sent by me, left if sent by others
-            let pollIsMine = false;
-            if (item.creator) {
-              if (typeof item.creator === 'string' || typeof item.creator === 'number') {
-                pollIsMine = String(item.creator) === String(user._id);
-              } else if (item.creator._id) {
-                pollIsMine = String(item.creator._id) === String(user._id);
-              } else if (item.creator.id) {
-                pollIsMine = String(item.creator.id) === String(user._id);
-              }
-            }
+            const getPollIsMine = (poll, userId) => {
+              if (!poll.creator) return false;
+              const creatorId = poll.creator._id || poll.creator.id || poll.creator;
+              return String(creatorId) === String(userId);
+            };
+            const isMine = getPollIsMine(item, user._id);
             return (
-              <div key={item.id || item._id || idx} className={`flex ${pollAlignMine ? 'justify-end' : 'justify-start'}`}>
+              <div key={item.id || item._id || idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className="max-w-[70%] rounded-lg px-4 py-2 mb-1 bg-gray-800 text-gray-200 text-center"
                 >
@@ -859,6 +885,13 @@ if (isGroup) {
           }
           return null;
         })}
+        {typingUser && (
+          <div className="flex justify-start">
+            <div className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm italic">
+              {typingUser} is typing...
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -884,7 +917,7 @@ if (isGroup) {
           className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Type a message..."
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={handleInputChange}
         />
         <input
           type="file"

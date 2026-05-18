@@ -1,16 +1,13 @@
 import { Server } from 'socket.io';
 import { User } from '../models/userModel.js';
+import { Chat } from '../models/Chat.js';
+import { Message } from '../models/Message.js';
+import { allowedOrigins } from './corsConfig.js';
 
 const configureSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-        "https://teamerwork.netlify.app",
-        "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
-      ],
+      origin: allowedOrigins,
       credentials: true,
     },
   });
@@ -19,7 +16,6 @@ const configureSocket = (server) => {
   // Also join a room for each userId for targeted events (like meetings)
 
   io.on('connection', (socket) => {
-    console.log('New client connected:', socket.id);
     socket.on('error', (err) => {
       console.error('[Socket.IO] Socket error:', err);
     });
@@ -37,12 +33,10 @@ const configureSocket = (server) => {
 
       // Fetch all chat IDs for this user and join rooms
       try {
-        const { Chat } = await import('../models/Chat.js'); // FIXED
         const chats = await Chat.find({ participants: idStr }, '_id');
         chats.forEach(chat => {
           const roomId = chat._id.toString();
           socket.join(roomId);
-          console.log(`User ${idStr} joined room ${roomId}`); // <-- LOG
         });
       } catch (err) {
         console.error('Error joining chat rooms:', err);
@@ -88,28 +82,26 @@ const configureSocket = (server) => {
         const chatIdStr = chatId?.toString?.() || chatId;
         const senderIdStr = senderId?.toString?.() || senderId;
         // Find chat
-        const { Chat } = await import('../models/Chat.js');
         const chat = await Chat.findById(chatIdStr);
         if (!chat) return;
         // Defensive: ensure content is not empty
         if (!content || typeof content !== 'string' || !content.trim()) return;
         // Create new message object
-        const newMessage = {
+        const newMessage = await Message.create({
           sender: senderIdStr,
           content,
           timestamp: new Date(),
           readBy: [senderIdStr],
           chatId: chatIdStr,
-        };
+        });
         // Save message to chat
-        chat.messages.push(newMessage);
-        chat.lastMessage = newMessage;
+        chat.lastMessage = newMessage._id;
         await chat.save();
         // Populate sender for frontend display
         const populatedChat = await Chat.findById(chatIdStr)
-          .populate('participants', 'username name email')
-          .populate('messages.sender', 'username name');
-        const savedMessage = populatedChat.messages[populatedChat.messages.length - 1];
+          .populate('participants', 'username name email');
+          
+        const savedMessage = await Message.findById(newMessage._id).populate('sender', 'username name');
         // Emit to the chat room
         io.to(chatIdStr).emit('new_message', {
           chat: { _id: chatIdStr },

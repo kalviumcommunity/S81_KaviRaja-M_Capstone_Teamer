@@ -40,7 +40,8 @@ export const register = asyncHandler(async (req, res) => {
     const token = user.generateToken();
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "Strict"
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Strict'
     });
 
     res.status(201).json({
@@ -78,7 +79,8 @@ export const login = asyncHandler(async (req, res) => {
   const token = user.generateToken();
   res.cookie("token", token, {
     httpOnly: true,
-    sameSite: "Strict"
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Strict'
   });
 
   res.status(200).json({ message: "Login successful", user, token });
@@ -132,7 +134,23 @@ export const uploadAvatar = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('No file uploaded');
   }
-  const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+  
+  // Use a promise wrapper for cloudinary upload stream
+  const uploadToCloudinary = () => {
+    return new Promise((resolve, reject) => {
+      import('../config/cloudinary.js').then((cloudinary) => {
+        const stream = cloudinary.default.uploader.upload_stream({ resource_type: 'auto', folder: 'avatars' }, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+        stream.end(req.file.buffer);
+      });
+    });
+  };
+
+  const result = await uploadToCloudinary();
+  const avatarUrl = result.secure_url;
+  
   req.user.avatar = avatarUrl;
   req.user.avatarUpdatedAt = new Date();
   await req.user.save();

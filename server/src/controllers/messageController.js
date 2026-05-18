@@ -1,4 +1,4 @@
-import Message from '../models/Message.js';
+import { Message } from '../models/Message.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // Send a message

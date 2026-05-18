@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: false, unique: false }, // Not required for Google users
+  username: { type: String, sparse: true, unique: true }, // Not required for Google users
   name: { type: String },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: false }, // Not required for Google users

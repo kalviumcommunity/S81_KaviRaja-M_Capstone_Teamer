@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useSocket } from "./SocketContext";
 import { useAuth } from "./AuthContext";
-import axios from "axios";
+import api from "../utils/fetchApi";
 
 
 
@@ -51,11 +51,6 @@ export const ChatProvider = ({ children }) => {
       setChats(prev => updateAvatarInChats(prev, userId, avatar, avatarUpdatedAt));
       // Update avatar in all chat messages
       setMessagesByChat(prev => updateAvatarInMessages(prev, userId, avatar, avatarUpdatedAt));
-      // Force refetch all chats to ensure state is up to date everywhere
-      try {
-        const res = await axios.get('/api/chat/user-chats');
-        setChats(res.data);
-      } catch {}
     };
     socket.on('user_avatar_updated', handleAvatarUpdate);
     return () => socket.off('user_avatar_updated', handleAvatarUpdate);
@@ -88,30 +83,6 @@ export const ChatProvider = ({ children }) => {
     return msgs.length - (lastRead + 1);
   };
 
-  // On mount, hydrate messagesByChat from localStorage for all chats
-  useEffect(() => {
-    const allMessages = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('messages_')) {
-        const chatId = key.replace('messages_', '');
-        try {
-          allMessages[chatId] = JSON.parse(localStorage.getItem(key));
-        } catch (e) {
-          allMessages[chatId] = [];
-        }
-      }
-    }
-    if (Object.keys(allMessages).length > 0) {
-      setMessagesByChat(allMessages);
-    }
-  }, []);
-  // Emit user_join after socket connects
-  useEffect(() => {
-    if (socket && user?._id) {
-      socket.emit("user_join", user._id);
-    }
-  }, [socket, user]);
 
   // Listen for new_message events and persist per-chat
   useEffect(() => {
@@ -123,13 +94,10 @@ export const ChatProvider = ({ children }) => {
       }
       setMessagesByChat((prev) => {
         const chatId = msg.chatId;
-        const updated = {
+        return {
           ...prev,
           [chatId]: [...(prev[chatId] || []), msg],
         };
-        // Persist to localStorage for this chat
-        localStorage.setItem(`messages_${chatId}`, JSON.stringify(updated[chatId]));
-        return updated;
       });
     };
     socket.on("new_message", handleNewMessage);
@@ -148,35 +116,16 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  // Load messages for a chat: show cached instantly, then fetch fresh
-  const loadMessages = async (chatId, token) => {
-    // Show cached messages instantly
-    const cached = localStorage.getItem(`messages_${chatId}`);
-    console.log('[ChatContext] loadMessages: cached for', chatId, cached);
-    setMessagesByChat((prev) => ({
-      ...prev,
-      [chatId]: cached ? JSON.parse(cached) : [],
-    }));
-    // Then fetch fresh from backend
+  const loadMessages = async (chatId) => {
     try {
-      const res = await axios.get(`/api/chat/${chatId}/messages`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await api.get(`/chat/${chatId}/messages`);
       let msgs = res.data.map(m => ({ ...m, chatId: m.chatId || chatId }));
-      console.log('[ChatContext] loadMessages: backend for', chatId, msgs);
-      // Only update cache if backend returns messages
-      if (Array.isArray(msgs) && msgs.length > 0) {
-        setMessagesByChat((prev) => ({
-          ...prev,
-          [chatId]: msgs,
-        }));
-        localStorage.setItem(`messages_${chatId}`, JSON.stringify(msgs));
-        console.log('[ChatContext] loadMessages: cache updated for', chatId, msgs);
-      } else {
-        console.log('[ChatContext] loadMessages: backend empty, cache NOT overwritten for', chatId);
-      }
+      setMessagesByChat((prev) => ({
+        ...prev,
+        [chatId]: msgs,
+      }));
     } catch (err) {
-      // If backend fails, keep showing cached
+      // If backend fails, keep showing in-memory state
     }
   };
 

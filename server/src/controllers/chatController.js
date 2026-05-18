@@ -1,4 +1,5 @@
 import { Chat } from '../models/Chat.js';
+import { Message } from '../models/Message.js';
 import { User } from '../models/userModel.js';
 import multer from 'multer';
 import cloudinary from '../config/cloudinary.js';
@@ -85,24 +86,24 @@ export const sendMessage = asyncHandler(async (req, res) => {
   }
 
   // Create new message object
-  const newMessage = {
+  const newMessage = await Message.create({
     sender: userId,
     content,
     timestamp: new Date(),
     readBy: [userId],
     chatId,
-  };
+  });
 
   // Save message to chat
-  chat.messages.push(newMessage);
-  chat.lastMessage = newMessage;
+  chat.lastMessage = newMessage._id;
   await chat.save();
 
   // Populate sender for frontend display
   const populatedChat = await Chat.findById(chatId)
     .populate('participants', 'username name email')
-    .populate('messages.sender', 'username name');
-  const savedMessage = populatedChat.messages[populatedChat.messages.length - 1];
+    .populate('lastMessage');
+  
+  const savedMessage = await Message.findById(newMessage._id).populate('sender', 'username name');
 
   // Emit socket event for real-time updates
   req.app.get('io').to(chatId).emit('new_message', {
@@ -128,10 +129,11 @@ export const searchUsers = asyncHandler(async (req, res) => {
 
 export const getChatMessages = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
-  const chat = await Chat.findById(chatId).populate('messages.sender', 'username name');
-  if (!chat) return res.status(404).json([]);
-  // Return messages as array, with sender info populated
-  res.json(chat.messages || []);
+  const messages = await Message.find({ chatId })
+    .populate('sender', 'name username avatar')
+    .sort({ timestamp: 1 })
+    .limit(50);
+  res.json(messages || []);
 });
 
 export const uploadFile = asyncHandler(async (req, res) => {
@@ -155,7 +157,7 @@ export const uploadFile = asyncHandler(async (req, res) => {
 
   const result = await uploadToCloudinary();
 
-  const newMessage = {
+  const newMessage = await Message.create({
     sender: userId,
     content: result.secure_url,
     fileName: req.file.originalname,
@@ -164,18 +166,17 @@ export const uploadFile = asyncHandler(async (req, res) => {
     timestamp: new Date(),
     readBy: [userId],
     chatId,
-  };
+  });
 
   const chat = await Chat.findByIdAndUpdate(
     chatId,
     {
-      $push: { messages: newMessage },
-      $set: { lastMessage: newMessage },
+      $set: { lastMessage: newMessage._id },
     },
     { new: true }
   ).populate('participants', 'username name email');
 
-  const savedMessage = chat.messages[chat.messages.length - 1];
+  const savedMessage = await Message.findById(newMessage._id).populate('sender', 'username name');
   req.app.get('io').to(chatId).emit('new_message', { chat, message: savedMessage });
   res.json({ url: result.secure_url, chat, message: savedMessage });
 });

@@ -15,6 +15,8 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
   const [isSearching, setIsSearching] = useState(false);
   const { chats, setChats } = useChat(); // Use global chats from context
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [activeTab, setActiveTab] = useState('All'); // 'All', 'DMs', 'Groups'
   const { user } = useAuth();
   const socket = useSocket();
   const { getUnreadCount, markChatAsRead } = useChat();
@@ -27,10 +29,13 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
         setChats(res.data);
       } catch {
         setChats([]);
+      } finally {
+        setIsLoadingChats(false);
       }
     };
     // Only fetch if not already loaded
     if (!chats || chats.length === 0) fetchChats();
+    else setIsLoadingChats(false);
   }, []);
 
   // After fetching chats, request online users
@@ -145,7 +150,14 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 bg-black flex justify-between items-center">
-        <h1 className="text-xl font-semibold text-white">Chats</h1>
+        <div className="flex items-center gap-3">
+          <img 
+            src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} 
+            alt="My Avatar" 
+            className="w-10 h-10 rounded-full object-cover border border-gray-700"
+          />
+          <h1 className="text-xl font-semibold text-white">Chats</h1>
+        </div>
       </div>
       {/* Search */}
       <div className="px-4 py-2 bg-black flex items-center gap-2">
@@ -199,10 +211,40 @@ const ChatList = ({ onSelectChat, selectedChatId }) => {
           existingUsers={chats.flatMap(c => c.participants)}
         />
       )}
+
+      {/* Tabs */}
+      <div className="flex bg-black px-4 py-2 gap-2 border-b border-gray-800">
+        {['All', 'DMs', 'Groups'].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
   // Chat list
   <div className="flex-1 min-h-0 overflow-y-auto bg-black">
-    {filteredChats.length > 0 ? (
-      filteredChats.map(chat => {
+    {isLoadingChats ? (
+      <div className="p-4 space-y-4">
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="flex items-center gap-4 animate-pulse">
+            <div className="w-12 h-12 bg-gray-800 rounded-full"></div>
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-gray-800 rounded w-3/4"></div>
+              <div className="h-3 bg-gray-800 rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : filteredChats.length > 0 ? (
+      filteredChats.filter(chat => {
+        if (activeTab === 'DMs') return !chat.isGroupChat;
+        if (activeTab === 'Groups') return chat.isGroupChat;
+        return true;
+      }).map(chat => {
         const latestChat = getLatestChat(chat._id) || chat;
         const other = latestChat.participants.find(p => p._id !== user._id);
         const unreadCount = getUnreadCount(latestChat._id);

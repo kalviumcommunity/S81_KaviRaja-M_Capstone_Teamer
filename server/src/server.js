@@ -23,18 +23,11 @@ import scheduleRoutes from './routes/scheduleRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import meetingRoutes from './routes/meetingRoutes.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
+import passport from './config/passport.js';
 
 const app = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-    "https://teamerwork.netlify.app",
-    "https://s81-kaviraja-m-capstone-teamer-2.onrender.com"
-  ]);
+import { allowedOrigins } from './config/corsConfig.js';
 
 app.use(
   cors({
@@ -45,32 +38,18 @@ app.use(
   })
 );
 
-app.use((req, res, next) => {
-  const origin = allowedOrigins.includes(req.headers.origin) ? req.headers.origin : allowedOrigins[0];
-  res.header("Access-Control-Allow-Origin", origin);
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// Serve uploaded avatars statically
-app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'server', 'uploads', 'avatars')));
-app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'uploads', 'avatars')));
 // Serve payment QR codes statically
-app.use('/uploads/payment_qr', express.static(path.join(process.cwd(), 'server', 'uploads', 'payment_qr')));
-app.use('/uploads/payment_qr', express.static(path.join(process.cwd(), 'uploads', 'payment_qr')));
+const uploadsBase = path.join(__dirname, '../../uploads');
+app.use('/uploads/payment_qr', express.static(path.join(uploadsBase, 'payment_qr')));
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false } // Set to true if using HTTPS
+  cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
 mongoose
